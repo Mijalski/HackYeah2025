@@ -17,7 +17,6 @@ import {
   Activity,
   Shield,
   Plus,
-  LogOut,
   Users,
   AlertTriangle,
   Info,
@@ -280,7 +279,7 @@ export default function App() {
               style={{ width: "140px" }}
               className="cursor-pointer"
             >
-              {isMilitaryLoggedIn ? "Military View" : "Civil View"}
+              {isMilitaryLoggedIn ? "Military View" : "Civilian View"}
             </Button>
 
             <Button
@@ -521,26 +520,6 @@ export default function App() {
                   </p>
                 </div>
               </div>
-            ) : events.length === 0 && incidents.length === 0 ? (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center">
-                  <AlertCircle className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="mb-2">No Detections Available</h3>
-                  <p className="text-muted-foreground mb-4">
-                    Waiting for live API data...
-                  </p>
-                  <Button
-                    onClick={() => {
-                      loadDetections(true);
-                      loadIncidents(true);
-                    }}
-                    variant="default"
-                  >
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                    Try Connecting to API
-                  </Button>
-                </div>
-              </div>
             ) : (
               <MapView
                 events={events}
@@ -553,7 +532,13 @@ export default function App() {
               />
             )}
           </TabsContent>
-
+          {/* <EvacuationDialog
+            open={true}
+            onOpenChange={setEvacuationDialogOpen}
+            incidents={incidents}
+            shelters={mockShelters}
+            onIssue={handleEvacuationIssue}
+          /> */}
           <TabsContent value="feed" className="flex-1 m-0">
             {isLoadingEvents && events.length === 0 ? (
               <div className="flex items-center justify-center h-full">
