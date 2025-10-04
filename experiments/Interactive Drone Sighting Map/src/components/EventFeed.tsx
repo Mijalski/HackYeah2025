@@ -9,24 +9,28 @@ interface EventFeedProps {
 
 export function EventFeed({ events }: EventFeedProps) {
   const sortedEvents = [...events].sort((a, b) => 
-    new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    new Date(b.timestamp_utc || b.timestamp).getTime() - new Date(a.timestamp_utc || a.timestamp).getTime()
   );
 
-  const getEventIcon = (type: DroneEvent['type']) => {
-    switch (type) {
+  const getEventIcon = (sensorType: DroneEvent['sensor_type']) => {
+    switch (sensorType) {
       case 'microphone': return <Volume2 className="w-4 h-4" />;
-      case 'photo': return <Eye className="w-4 h-4" />;
-      case 'written': return <RadioTower className="w-4 h-4" />;
+      case 'camera': return <Eye className="w-4 h-4" />;
+      case 'radar': return <RadioTower className="w-4 h-4" />;
+      case 'visual': 
       case 'manual': return <MapPin className="w-4 h-4" />;
+      default: return <MapPin className="w-4 h-4" />;
     }
   };
 
-  const getEventColor = (type: DroneEvent['type']) => {
-    switch (type) {
+  const getEventColor = (sensorType: DroneEvent['sensor_type']) => {
+    switch (sensorType) {
       case 'microphone': return 'bg-purple-500';
-      case 'photo': return 'bg-green-500';
-      case 'written': return 'bg-blue-500';
+      case 'camera': return 'bg-green-500';
+      case 'radar': return 'bg-blue-500';
+      case 'visual':
       case 'manual': return 'bg-orange-500';
+      default: return 'bg-gray-500';
     }
   };
 
@@ -44,18 +48,21 @@ export function EventFeed({ events }: EventFeedProps) {
       <div className="space-y-3 p-4">
         {sortedEvents.map((event) => (
           <div
-            key={event.id}
+            key={event.detection_id || event.id}
             className="bg-card border border-border rounded-lg p-4 hover:bg-accent/50 transition-colors"
           >
             <div className="flex items-start gap-3">
-              <div className={`${getEventColor(event.type)} text-white p-2 rounded-lg shrink-0`}>
-                {getEventIcon(event.type)}
+              <div className={`${getEventColor(event.sensor_type)} text-white p-2 rounded-lg shrink-0`}>
+                {getEventIcon(event.sensor_type)}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-muted-foreground">Event #{event.id}</span>
+                  <span className="text-muted-foreground">{event.detection_id || `Event #${event.id}`}</span>
                   <Badge variant="outline" className="uppercase">
-                    {event.type}
+                    {event.sensor_type}
+                  </Badge>
+                  <Badge variant="secondary" className="capitalize">
+                    {event.classification}
                   </Badge>
                   {event.confidence && (
                     <Badge variant="secondary">
@@ -63,25 +70,34 @@ export function EventFeed({ events }: EventFeedProps) {
                     </Badge>
                   )}
                 </div>
+                {event.drone_id && (
+                  <div className="mb-1 text-muted-foreground">
+                    Drone: {event.drone_id}
+                  </div>
+                )}
                 <p className="text-foreground mb-2">
                   {event.description || 'No description available'}
                 </p>
                 <div className="flex flex-wrap gap-3 text-muted-foreground">
-                  {event.altitude && (
-                    <span>Alt: {event.altitude}m</span>
+                  <span>Sensor: {event.sensor_id}</span>
+                  {event.altitude_m && (
+                    <span>Alt: {event.altitude_m}m</span>
                   )}
-                  {event.heading !== undefined && (
-                    <span>Heading: {event.heading}°</span>
+                  {event.heading_deg !== undefined && (
+                    <span>Heading: {event.heading_deg}°</span>
                   )}
-                  {event.speed && (
-                    <span>Speed: {event.speed} km/h</span>
+                  {event.speed_mps && (
+                    <span>Speed: {event.speed_mps.toFixed(1)} m/s</span>
+                  )}
+                  {event.signal_strength_dbm && (
+                    <span>Signal: {event.signal_strength_dbm} dBm</span>
                   )}
                   {event.reportedBy && (
                     <span>By: {event.reportedBy}</span>
                   )}
                 </div>
                 <div className="text-muted-foreground mt-2">
-                  {formatTimeAgo(event.timestamp)}
+                  {formatTimeAgo(event.timestamp_utc || event.timestamp)}
                 </div>
               </div>
             </div>

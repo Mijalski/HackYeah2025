@@ -1,6 +1,6 @@
 
   {
-      "name": "Interactive Drone Sighting Map",
+      "name": "uavo_V2",
       "version": "0.1.0",
       "private": true,
       "dependencies": {

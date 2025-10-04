@@ -1,7 +1,7 @@
 
-  # Interactive Drone Sighting Map
+  # uavo_V2
 
-  This is a code bundle for Interactive Drone Sighting Map. The original project is available at https://www.figma.com/design/Bu8MH8VGPvoR8FCqzcyuLY/Interactive-Drone-Sighting-Map.
+  This is a code bundle for uavo_V2. The original project is available at https://www.figma.com/design/XECrtnRX4HL5fVegGPjU1i/uavo_V2.
 
   ## Running the code
 

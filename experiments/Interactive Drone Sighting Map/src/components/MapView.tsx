@@ -1,17 +1,68 @@
-import { useState, useRef, useEffect } from 'react';
-import { DroneEvent, ClusteredEvent } from '../types';
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { DroneEvent, ClusteredEvent, Shelter, UserMode, EvacuationOrder } from '../types';
 import { getVisibleTiles, getTilePosition, getMarkerPosition, viewportClickToLatLng, Tile } from '../lib/mapUtils';
-import { ZoomIn, ZoomOut } from 'lucide-react';
+import { ZoomIn, ZoomOut, AlertTriangle, Info, AlertCircle, AlertOctagon } from 'lucide-react';
 import { Button } from './ui/button';
+import { Badge } from './ui/badge';
+
+export type MilitaryViewMode = 'datapoints' | 'incidents';
 
 interface MapViewProps {
   events: DroneEvent[];
   clusteredEvents: ClusteredEvent[];
-  aiMode: boolean;
+  shelters: Shelter[];
+  userMode: UserMode;
+  militaryViewMode: MilitaryViewMode;
+  evacuationOrders: EvacuationOrder[];
   onMapClick?: (lat: number, lng: number) => void;
 }
 
-export function MapView({ events, clusteredEvents, aiMode, onMapClick }: MapViewProps) {
+// Calculate distance between two coordinates (Haversine formula)
+function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371; // Earth's radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+// Get icon component based on risk level
+function getRiskIcon(riskLevel?: string) {
+  switch (riskLevel) {
+    case 'low':
+      return Info;
+    case 'medium':
+      return AlertCircle;
+    case 'high':
+      return AlertTriangle;
+    case 'critical':
+      return AlertOctagon;
+    default:
+      return Info;
+  }
+}
+
+// Get color based on event type
+function getEventTypeColor(type: string): string {
+  switch (type) {
+    case 'microphone':
+      return '#a855f7'; // purple
+    case 'photo':
+      return '#22c55e'; // green
+    case 'written':
+      return '#3b82f6'; // blue
+    case 'manual':
+      return '#f97316'; // orange
+    default:
+      return '#6b7280'; // gray
+  }
+}
+
+export function MapView({ events, clusteredEvents, shelters, userMode, militaryViewMode, evacuationOrders, onMapClick }: MapViewProps) {
   const [selectedEvent, setSelectedEvent] = useState<string | null>(null);
   const mapRef = useRef<HTMLDivElement>(null);
   
@@ -156,6 +207,26 @@ export function MapView({ events, clusteredEvents, aiMode, onMapClick }: MapView
     }
   };
 
+  // Calculate safe shelters for civilian mode
+  const safeShelters = useMemo(() => {
+    if (userMode !== 'civilian') return [];
+    
+    // Calculate average distance from each shelter to all threats
+    const shelterSafety = shelters.map(shelter => {
+      const distances = clusteredEvents.map(cluster => 
+        calculateDistance(shelter.latitude, shelter.longitude, cluster.latitude, cluster.longitude)
+      );
+      const avgDistance = distances.reduce((a, b) => a + b, 0) / distances.length;
+      return { shelter, avgDistance };
+    });
+    
+    // Sort by average distance (farther is safer) and take top 5
+    return shelterSafety
+      .sort((a, b) => b.avgDistance - a.avgDistance)
+      .slice(0, 5)
+      .map(s => s.shelter);
+  }, [shelters, clusteredEvents, userMode]);
+
   return (
     <div 
       ref={mapRef}
@@ -226,8 +297,234 @@ export function MapView({ events, clusteredEvents, aiMode, onMapClick }: MapView
         </div>
       </div>
 
-      {/* Trajectories - AI Mode */}
-      {aiMode && clusteredEvents.map(cluster => {
+      {/* Evacuation Order Alert - Civilian Mode */}
+      {userMode === 'civilian' && evacuationOrders.length > 0 && (
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-30 max-w-md">
+          {evacuationOrders.map((order) => {
+            const shelter = shelters.find(s => s.id === order.targetShelterId);
+            const incident = clusteredEvents.find(i => i.id === order.incidentId);
+            
+            const priorityColors = {
+              low: 'bg-blue-600',
+              medium: 'bg-yellow-600',
+              high: 'bg-orange-600',
+              critical: 'bg-red-600'
+            };
+            
+            return (
+              <div 
+                key={order.id}
+                className={`${priorityColors[order.priority]} text-white rounded-lg shadow-2xl p-4 mb-2 border-2 border-white animate-pulse`}
+              >
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="w-6 h-6 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="text-white">EVACUATION ORDER</h3>
+                      <Badge variant="secondary" className="text-xs">
+                        {order.priority.toUpperCase()}
+                      </Badge>
+                    </div>
+                    <p className="text-white/90 mb-2">
+                      Proceed immediately to <strong>{shelter?.name || 'designated shelter'}</strong>
+                    </p>
+                    {order.message && (
+                      <p className="text-white/80 text-sm border-t border-white/20 pt-2 mt-2">
+                        {order.message}
+                      </p>
+                    )}
+                    <p className="text-white/70 text-sm mt-2">
+                      Issued {new Date(order.issuedAt).toLocaleTimeString()}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Evacuation Routes - Civilian Mode with Active Orders */}
+      {userMode === 'civilian' && evacuationOrders.map(order => {
+        const incident = clusteredEvents.find(i => i.id === order.incidentId);
+        const shelter = shelters.find(s => s.id === order.targetShelterId);
+        
+        if (!incident || !shelter) return null;
+        
+        const startPos = getMarkerPosition(
+          incident.latitude,
+          incident.longitude,
+          center.lat,
+          center.lng,
+          zoom,
+          dimensions.width,
+          dimensions.height,
+          offset.x,
+          offset.y
+        );
+        
+        const endPos = getMarkerPosition(
+          shelter.latitude,
+          shelter.longitude,
+          center.lat,
+          center.lng,
+          zoom,
+          dimensions.width,
+          dimensions.height,
+          offset.x,
+          offset.y
+        );
+        
+        const priorityColors = {
+          low: '#3b82f6',
+          medium: '#eab308',
+          high: '#f97316',
+          critical: '#dc2626'
+        };
+        
+        const routeColor = priorityColors[order.priority];
+        
+        return (
+          <svg
+            key={`evac-route-${order.id}`}
+            className="absolute top-0 left-0 w-full h-full pointer-events-none"
+            style={{ zIndex: 5 }}
+          >
+            {/* Glow effect */}
+            <path
+              d={`M ${startPos.x} ${startPos.y} L ${endPos.x} ${endPos.y}`}
+              fill="none"
+              stroke={routeColor}
+              strokeWidth="12"
+              strokeOpacity="0.3"
+              filter="blur(8px)"
+            />
+            {/* Main route - thicker and more prominent */}
+            <path
+              d={`M ${startPos.x} ${startPos.y} L ${endPos.x} ${endPos.y}`}
+              fill="none"
+              stroke={routeColor}
+              strokeWidth="6"
+              strokeOpacity="0.9"
+            />
+            {/* White center line */}
+            <path
+              d={`M ${startPos.x} ${startPos.y} L ${endPos.x} ${endPos.y}`}
+              fill="none"
+              stroke="white"
+              strokeWidth="2"
+              strokeOpacity="0.8"
+              strokeDasharray="15 10"
+            />
+            {/* Large arrow at shelter end */}
+            <polygon
+              points="0,-10 20,0 0,10"
+              fill={routeColor}
+              fillOpacity="1"
+              transform={`translate(${endPos.x}, ${endPos.y}) rotate(${
+                Math.atan2(endPos.y - startPos.y, endPos.x - startPos.x) * 180 / Math.PI
+              })`}
+              stroke="white"
+              strokeWidth="2"
+            />
+            {/* Pulsing circle at evacuation point */}
+            <circle
+              cx={startPos.x}
+              cy={startPos.y}
+              r="15"
+              fill="none"
+              stroke={routeColor}
+              strokeWidth="3"
+              strokeOpacity="0.6"
+              className="animate-ping"
+            />
+            <circle
+              cx={startPos.x}
+              cy={startPos.y}
+              r="8"
+              fill={routeColor}
+              fillOpacity="0.8"
+              stroke="white"
+              strokeWidth="2"
+            />
+          </svg>
+        );
+      })}
+
+      {/* Routes to safe shelters - Civilian Mode */}
+      {userMode === 'civilian' && evacuationOrders.length === 0 && safeShelters.map((shelter, idx) => {
+        // Draw routes from threat clusters to this safe shelter
+        return clusteredEvents.slice(0, 3).map((cluster, clusterIdx) => {
+          const startPos = getMarkerPosition(
+            cluster.latitude,
+            cluster.longitude,
+            center.lat,
+            center.lng,
+            zoom,
+            dimensions.width,
+            dimensions.height,
+            offset.x,
+            offset.y
+          );
+          
+          const endPos = getMarkerPosition(
+            shelter.latitude,
+            shelter.longitude,
+            center.lat,
+            center.lng,
+            zoom,
+            dimensions.width,
+            dimensions.height,
+            offset.x,
+            offset.y
+          );
+          
+          // Color based on priority (top shelters get brighter colors)
+          const routeColor = idx === 0 ? '#10b981' : idx === 1 ? '#3b82f6' : '#8b5cf6';
+          
+          return (
+            <svg
+              key={`route-${shelter.id}-${cluster.id}`}
+              className="absolute top-0 left-0 w-full h-full pointer-events-none"
+              style={{ zIndex: 3 }}
+            >
+              {/* Glow effect */}
+              <path
+                d={`M ${startPos.x} ${startPos.y} L ${endPos.x} ${endPos.y}`}
+                fill="none"
+                stroke={routeColor}
+                strokeWidth="6"
+                strokeOpacity="0.2"
+                strokeDasharray="10 5"
+                filter="blur(3px)"
+              />
+              {/* Main route */}
+              <path
+                d={`M ${startPos.x} ${startPos.y} L ${endPos.x} ${endPos.y}`}
+                fill="none"
+                stroke={routeColor}
+                strokeWidth="3"
+                strokeOpacity="0.7"
+                strokeDasharray="10 5"
+              />
+              {/* Arrow at shelter end */}
+              <polygon
+                points="0,-6 12,0 0,6"
+                fill={routeColor}
+                fillOpacity="0.8"
+                transform={`translate(${endPos.x}, ${endPos.y}) rotate(${
+                  Math.atan2(endPos.y - startPos.y, endPos.x - startPos.x) * 180 / Math.PI
+                })`}
+                stroke="white"
+                strokeWidth="1"
+              />
+            </svg>
+          );
+        });
+      })}
+
+      {/* Trajectories - Military Mode */}
+      {userMode === 'military' && clusteredEvents.map(cluster => {
         if (!cluster.trajectory || cluster.trajectory.length < 2) return null;
         
         const color = getRiskColor(cluster.riskLevel);
@@ -255,7 +552,6 @@ export function MapView({ events, clusteredEvents, aiMode, onMapClick }: MapView
           const point = trajectoryPath[i];
           if (cluster.trajectory[i].isProjected) {
             if (projectedPoints.length === 0 && actualPoints.length > 0) {
-              // Add last actual point as first projected point for continuity
               projectedPoints.push(actualPoints[actualPoints.length - 1]);
             }
             projectedPoints.push(point);
@@ -282,7 +578,6 @@ export function MapView({ events, clusteredEvents, aiMode, onMapClick }: MapView
             {/* Actual trajectory path */}
             {actualPathD && (
               <>
-                {/* Glow effect */}
                 <path
                   d={actualPathD}
                   fill="none"
@@ -293,7 +588,6 @@ export function MapView({ events, clusteredEvents, aiMode, onMapClick }: MapView
                   strokeLinejoin="round"
                   filter="blur(4px)"
                 />
-                {/* Main path */}
                 <path
                   d={actualPathD}
                   fill="none"
@@ -303,7 +597,6 @@ export function MapView({ events, clusteredEvents, aiMode, onMapClick }: MapView
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
-                {/* Add arrows along the path */}
                 {actualPoints.slice(0, -1).map((point, i) => {
                   const next = actualPoints[i + 1];
                   const angle = Math.atan2(next.y - point.y, next.x - point.x) * 180 / Math.PI;
@@ -328,7 +621,6 @@ export function MapView({ events, clusteredEvents, aiMode, onMapClick }: MapView
             {/* Projected trajectory path (dashed) */}
             {projectedPathD && (
               <>
-                {/* Glow effect for projection */}
                 <path
                   d={projectedPathD}
                   fill="none"
@@ -340,7 +632,6 @@ export function MapView({ events, clusteredEvents, aiMode, onMapClick }: MapView
                   strokeLinejoin="round"
                   filter="blur(4px)"
                 />
-                {/* Main projected path */}
                 <path
                   d={projectedPathD}
                   fill="none"
@@ -351,9 +642,8 @@ export function MapView({ events, clusteredEvents, aiMode, onMapClick }: MapView
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
-                {/* Arrows along projected path */}
                 {projectedPoints.slice(0, -1).map((point, i) => {
-                  if (i % 2 !== 0) return null; // Show fewer arrows on projected path
+                  if (i % 2 !== 0) return null;
                   const next = projectedPoints[i + 1];
                   const angle = Math.atan2(next.y - point.y, next.x - point.x) * 180 / Math.PI;
                   const midX = (point.x + next.x) / 2;
@@ -371,7 +661,6 @@ export function MapView({ events, clusteredEvents, aiMode, onMapClick }: MapView
                     />
                   );
                 })}
-                {/* Large arrow at the end of projected path */}
                 {projectedPoints.length >= 2 && (
                   <polygon
                     points="0,-8 16,0 0,8"
@@ -406,8 +695,168 @@ export function MapView({ events, clusteredEvents, aiMode, onMapClick }: MapView
         );
       })}
 
-      {/* Markers - AI Mode: Clustered events */}
-      {aiMode && clusteredEvents.map(cluster => {
+      {/* Shelters - Show all in military mode, only safe ones in civilian mode */}
+      {(userMode === 'military' ? shelters : safeShelters).map(shelter => {
+        const pos = getMarkerPosition(
+          shelter.latitude,
+          shelter.longitude,
+          center.lat,
+          center.lng,
+          zoom,
+          dimensions.width,
+          dimensions.height,
+          offset.x,
+          offset.y
+        );
+        
+        const isVisible = pos.x >= -50 && pos.x <= dimensions.width + 50 && 
+                         pos.y >= -50 && pos.y <= dimensions.height + 50;
+        const isSelected = selectedEvent === shelter.id;
+
+        if (!isVisible) return null;
+
+        const shelterColor = shelter.type === 'military' ? '#7c3aed' : '#2563eb';
+
+        // Highlight recommended shelters in civilian mode
+        const isRecommended = userMode === 'civilian' && safeShelters.indexOf(shelter) < 3;
+
+        return (
+          <div
+            key={shelter.id}
+            className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-transform hover:scale-110"
+            style={{ left: pos.x, top: pos.y, zIndex: isSelected ? 9999 : 8 }}
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedEvent(selectedEvent === shelter.id ? null : shelter.id);
+            }}
+          >
+            {isRecommended && (
+              <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white animate-pulse" />
+            )}
+            <div
+              className={`w-5 h-5 border-2 border-white shadow-lg ${isRecommended ? 'ring-2 ring-green-500' : ''}`}
+              style={{ backgroundColor: shelterColor }}
+            />
+            
+            {selectedEvent === shelter.id && (
+              <div className="absolute top-8 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-xl p-4 min-w-[250px] border border-gray-200 marker-popup" style={{ zIndex: 10 }}>
+                <h3 className="mb-2">{shelter.name}</h3>
+                <div className="space-y-1 text-foreground">
+                  <div><strong>Type:</strong> {shelter.type.toUpperCase()}</div>
+                  <div><strong>Capacity:</strong> {shelter.capacity} people</div>
+                  <div>
+                    <strong>Status:</strong>{' '}
+                    <span className={shelter.available ? 'text-green-600' : 'text-red-600'}>
+                      {shelter.available ? 'Available' : 'Full'}
+                    </span>
+                  </div>
+                  <div className="pt-2 border-t border-gray-200 text-muted-foreground">
+                    {shelter.latitude.toFixed(4)}, {shelter.longitude.toFixed(4)}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Individual Data Points - Military Mode with Data Points view */}
+      {userMode === 'military' && militaryViewMode === 'datapoints' && events.map(event => {
+        const pos = getMarkerPosition(
+          event.latitude,
+          event.longitude,
+          center.lat,
+          center.lng,
+          zoom,
+          dimensions.width,
+          dimensions.height,
+          offset.x,
+          offset.y
+        );
+        
+        const color = getEventTypeColor(event.type);
+        const isVisible = pos.x >= -50 && pos.x <= dimensions.width + 50 && 
+                         pos.y >= -50 && pos.y <= dimensions.height + 50;
+        const isSelected = selectedEvent === event.id;
+
+        if (!isVisible) return null;
+
+        return (
+          <div
+            key={event.id}
+            className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-transform hover:scale-110"
+            style={{ left: pos.x, top: pos.y, zIndex: isSelected ? 9999 : 10 }}
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedEvent(selectedEvent === event.id ? null : event.id);
+            }}
+          >
+            <div
+              className="w-5 h-5 rounded-full border-2 border-white shadow-lg"
+              style={{ backgroundColor: color }}
+            />
+            
+            {selectedEvent === event.id && (
+              <div className="absolute top-8 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-xl p-4 min-w-[320px] max-w-[380px] border border-gray-200 marker-popup" style={{ zIndex: 10 }}>
+                <h3 className="mb-2">Detection {event.detection_id}</h3>
+                <div className="space-y-1.5 text-foreground">
+                  {/* Detection Info */}
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                    <div><strong>Sensor:</strong> {event.sensor_id}</div>
+                    <div><strong>Type:</strong> {event.sensor_type}</div>
+                    <div><strong>Source:</strong> {event.detection_source}</div>
+                    <div><strong>Classification:</strong> <span className="capitalize">{event.classification}</span></div>
+                  </div>
+                  
+                  {/* Drone Info */}
+                  {event.drone_id && (
+                    <div className="pt-1.5 border-t border-gray-200">
+                      <div><strong>Drone ID:</strong> {event.drone_id}</div>
+                    </div>
+                  )}
+                  
+                  {/* Location & Movement */}
+                  <div className="pt-1.5 border-t border-gray-200 grid grid-cols-2 gap-x-3 gap-y-1">
+                    <div><strong>Altitude:</strong> {event.altitude_m ? `${event.altitude_m}m` : 'N/A'}</div>
+                    <div><strong>Speed:</strong> {event.speed_mps ? `${event.speed_mps.toFixed(1)} m/s` : 'N/A'}</div>
+                    <div><strong>Heading:</strong> {event.heading_deg ? `${event.heading_deg}°` : 'N/A'}</div>
+                    <div><strong>Course:</strong> {event.course_vector || 'N/A'}</div>
+                  </div>
+                  
+                  {/* Signal Quality */}
+                  <div className="pt-1.5 border-t border-gray-200 grid grid-cols-2 gap-x-3 gap-y-1">
+                    <div><strong>Confidence:</strong> {Math.round(event.confidence * 100)}%</div>
+                    {event.signal_strength_dbm && (
+                      <div><strong>Signal:</strong> {event.signal_strength_dbm} dBm</div>
+                    )}
+                  </div>
+                  
+                  {/* Description */}
+                  {event.description && (
+                    <div className="pt-1.5 border-t border-gray-200">
+                      <div className="text-muted-foreground">{event.description}</div>
+                    </div>
+                  )}
+                  
+                  {/* Timestamps */}
+                  <div className="pt-1.5 border-t border-gray-200 text-muted-foreground">
+                    <div>Detected: {new Date(event.timestamp_utc).toLocaleString()}</div>
+                    <div>Ingested: {new Date(event.ingestion_time).toLocaleString()}</div>
+                  </div>
+                  
+                  {/* Coordinates */}
+                  <div className="text-muted-foreground">
+                    {event.latitude.toFixed(4)}, {event.longitude.toFixed(4)}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Clustered Incidents - Military Mode with Incidents view */}
+      {userMode === 'military' && militaryViewMode === 'incidents' && clusteredEvents.map(cluster => {
         const pos = getMarkerPosition(
           cluster.latitude,
           cluster.longitude,
@@ -424,6 +873,7 @@ export function MapView({ events, clusteredEvents, aiMode, onMapClick }: MapView
         const isVisible = pos.x >= -50 && pos.x <= dimensions.width + 50 && 
                          pos.y >= -50 && pos.y <= dimensions.height + 50;
         const isSelected = selectedEvent === cluster.id;
+        const RiskIcon = getRiskIcon(cluster.riskLevel);
 
         if (!isVisible) return null;
 
@@ -431,7 +881,7 @@ export function MapView({ events, clusteredEvents, aiMode, onMapClick }: MapView
           <div
             key={cluster.id}
             className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-transform hover:scale-110"
-            style={{ left: pos.x, top: pos.y, zIndex: isSelected ? 1000 : 10 }}
+            style={{ left: pos.x, top: pos.y, zIndex: isSelected ? 9999 : 10 }}
             onClick={(e) => {
               e.stopPropagation();
               setSelectedEvent(selectedEvent === cluster.id ? null : cluster.id);
@@ -441,14 +891,14 @@ export function MapView({ events, clusteredEvents, aiMode, onMapClick }: MapView
               className="w-12 h-12 rounded-full border-3 border-white flex items-center justify-center shadow-lg"
               style={{ backgroundColor: color }}
             >
-              <span className="text-white">{cluster.events.length}</span>
+              <RiskIcon className="w-6 h-6 text-white" strokeWidth={2.5} />
             </div>
             
             {selectedEvent === cluster.id && (
-              <div className="absolute top-14 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-xl p-4 min-w-[280px] border border-gray-200 marker-popup">
-                <h3 className="mb-2">Cluster Analysis</h3>
+              <div className="absolute top-14 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-xl p-4 min-w-[280px] border border-gray-200 marker-popup" style={{ zIndex: 10 }}>
+                <h3 className="mb-2">Incident #{cluster.id.replace('cluster-', '')}</h3>
                 <div className="space-y-1 text-foreground">
-                  <div><strong>Events:</strong> {cluster.events.length}</div>
+                  <div><strong>Events:</strong> {cluster.events.length} signals</div>
                   <div><strong>Pattern:</strong> {cluster.pattern || 'Unknown'}</div>
                   <div>
                     <strong>Risk Level:</strong>{' '}
@@ -468,80 +918,11 @@ export function MapView({ events, clusteredEvents, aiMode, onMapClick }: MapView
                   )}
                   {cluster.trajectory && (
                     <div>
-                      <strong>Trajectory Points:</strong> {cluster.trajectory.filter(p => !p.isProjected).length} actual, {cluster.trajectory.filter(p => p.isProjected).length} projected
+                      <strong>Trajectory:</strong> {cluster.trajectory.filter(p => !p.isProjected).length} actual, {cluster.trajectory.filter(p => p.isProjected).length} projected
                     </div>
                   )}
                   <div className="pt-2 border-t border-gray-200 text-muted-foreground">
                     {new Date(cluster.timestamp).toLocaleString()}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        );
-      })}
-
-      {/* Markers - Simple Mode: Individual events */}
-      {!aiMode && events.map(event => {
-        const pos = getMarkerPosition(
-          event.latitude,
-          event.longitude,
-          center.lat,
-          center.lng,
-          zoom,
-          dimensions.width,
-          dimensions.height,
-          offset.x,
-          offset.y
-        );
-        
-        const color = getEventColor(event.type);
-        const isVisible = pos.x >= -50 && pos.x <= dimensions.width + 50 && 
-                         pos.y >= -50 && pos.y <= dimensions.height + 50;
-        const isSelected = selectedEvent === event.id;
-
-        if (!isVisible) return null;
-
-        return (
-          <div
-            key={event.id}
-            className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-transform hover:scale-125"
-            style={{ left: pos.x, top: pos.y, zIndex: isSelected ? 1000 : 10 }}
-            onClick={(e) => {
-              e.stopPropagation();
-              setSelectedEvent(selectedEvent === event.id ? null : event.id);
-            }}
-          >
-            <div
-              className="w-6 h-6 rounded-full border-2 border-white shadow-lg"
-              style={{ backgroundColor: color }}
-            />
-            
-            {selectedEvent === event.id && (
-              <div className="absolute top-8 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-xl p-4 min-w-[250px] border border-gray-200 marker-popup">
-                <h3 className="mb-2">Event #{event.id}</h3>
-                <div className="space-y-1 text-foreground">
-                  <div><strong>Type:</strong> {event.type.toUpperCase()}</div>
-                  {event.confidence && (
-                    <div><strong>Confidence:</strong> {(event.confidence * 100).toFixed(0)}%</div>
-                  )}
-                  {event.altitude && (
-                    <div><strong>Altitude:</strong> {event.altitude}m</div>
-                  )}
-                  {event.heading !== undefined && (
-                    <div><strong>Heading:</strong> {event.heading}°</div>
-                  )}
-                  {event.speed && (
-                    <div><strong>Speed:</strong> {event.speed} km/h</div>
-                  )}
-                  {event.reportedBy && (
-                    <div><strong>Reported by:</strong> {event.reportedBy}</div>
-                  )}
-                  <div className="pt-2 border-t border-gray-200 text-muted-foreground">
-                    {event.description || 'No description'}
-                  </div>
-                  <div className="text-muted-foreground">
-                    {new Date(event.timestamp).toLocaleString()}
                   </div>
                 </div>
               </div>
