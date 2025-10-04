@@ -1,12 +1,19 @@
-﻿using System.Globalization;
+﻿using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace HackYeah2025Api;
 
 public sealed class DatabricksClient
 {
+    private static readonly string TimestampFormat = "yyyy-MM-dd HH:mm:ss";
+
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly string _host;
     private readonly string _warehouseId;
@@ -27,7 +34,7 @@ public sealed class DatabricksClient
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _token);
 
         var where = fromUtc.HasValue
-            ? $" WHERE timestamp_utc >= TIMESTAMP '{fromUtc.Value.UtcDateTime:yyyy-MM-dd HH:mm:ss}'"
+            ? $" WHERE timestamp_utc >= TIMESTAMP '{fromUtc.Value.UtcDateTime.ToString(TimestampFormat, CultureInfo.InvariantCulture)}'"
             : string.Empty;
 
         var body = new
@@ -68,7 +75,7 @@ public sealed class DatabricksClient
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _token);
 
         var where = fromUtc.HasValue
-            ? $" WHERE timestamp_utc >= TIMESTAMP '{fromUtc.Value.UtcDateTime:yyyy-MM-dd HH:mm:ss}'"
+            ? $" WHERE timestamp_utc >= TIMESTAMP '{fromUtc.Value.UtcDateTime.ToString(TimestampFormat, CultureInfo.InvariantCulture)}'"
             : string.Empty;
 
         var body = new
@@ -113,17 +120,12 @@ public sealed class DatabricksClient
             }
 
             var id = row[0].GetString() ?? string.Empty;
-
-            DateTime timestampUtc = DateTime.MinValue;
-            if (row[1].ValueKind == JsonValueKind.String && DateTime.TryParse(row[1].GetString(), out var t))
-            {
-                timestampUtc = t;
-            }
-
-            IEnumerable<Point> points = ParsePoints(row[2]);
+            var timestampUtc = ParseTimestampUtc(row[1]);
+            var points = ParsePoints(row[2]);
+            var riskString = row[3].GetString() ?? "0";
             var description = row[4].GetString() ?? string.Empty;
 
-            list.Add(new ThreatSummary(id, timestampUtc, points, int.Parse(row[3].GetString(), CultureInfo.InvariantCulture), description, 1));
+            list.Add(new ThreatSummary(id, timestampUtc, points, int.Parse(riskString, CultureInfo.InvariantCulture), description, 1));
         }
 
         return list;
@@ -138,9 +140,11 @@ public sealed class DatabricksClient
             {
                 if (e.TryGetProperty("lat", out var latEl) && e.TryGetProperty("lng", out var lngEl))
                 {
-                    if (latEl.TryGetDouble(out var lat) && lngEl.TryGetDouble(out var lng))
+                    var hasLat = latEl.ValueKind == JsonValueKind.Number ? latEl.TryGetDouble(out var latNum) : double.TryParse(latEl.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out latNum);
+                    var hasLng = lngEl.ValueKind == JsonValueKind.Number ? lngEl.TryGetDouble(out var lngNum) : double.TryParse(lngEl.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out lngNum);
+                    if (hasLat && hasLng)
                     {
-                        points.Add(new Point(lat, lng));
+                        points.Add(new Point(latNum, lngNum));
                     }
                 }
             }
@@ -187,22 +191,10 @@ public sealed class DatabricksClient
                 continue;
             }
 
-            DateTime ts = DateTime.MinValue;
-            if (row[0].ValueKind == JsonValueKind.String)
-            {
-                var s = row[0].GetString();
-                if (!string.IsNullOrWhiteSpace(s))
-                {
-                    if (!DateTime.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out ts))
-                    {
-                        DateTime.TryParseExact(s, "dd.MM.yyyy HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out ts);
-                    }
-                }
-            }
-
-            var isLatOk = double.TryParse(row[1].GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var lat);
-            var isLonOk = double.TryParse(row[2].GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var lon);
-            var isConfOk = double.TryParse(row[3].GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var conf);
+            var ts = ParseTimestampUtc(row[0]);
+            var lat = ReadDouble(row[1]);
+            var lon = ReadDouble(row[2]);
+            var conf = ReadDouble(row[3]);
             var sensor = row[4].GetString() ?? string.Empty;
             var src = row[5].GetString() ?? string.Empty;
             var cls = row[6].GetString() ?? string.Empty;
@@ -211,5 +203,52 @@ public sealed class DatabricksClient
         }
 
         return list;
+    }
+
+    private static DateTime ParseTimestampUtc(JsonElement el)
+    {
+        if (el.ValueKind == JsonValueKind.String)
+        {
+            var s = el.GetString();
+            return ParseTimestampUtc(s);
+        }
+
+        return DateTime.MinValue;
+    }
+
+    private static DateTime ParseTimestampUtc(string? s)
+    {
+        if (string.IsNullOrWhiteSpace(s))
+        {
+            return DateTime.MinValue;
+        }
+
+        if (DateTimeOffset.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var dto))
+        {
+            return dto.UtcDateTime;
+        }
+
+        if (DateTime.TryParseExact(s, TimestampFormat, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var dt))
+        {
+            return dt.ToUniversalTime();
+        }
+
+        return DateTime.MinValue;
+    }
+
+    private static double ReadDouble(JsonElement el)
+    {
+        if (el.ValueKind == JsonValueKind.Number && el.TryGetDouble(out var n))
+        {
+            return n;
+        }
+
+        var s = el.GetString();
+        if (!string.IsNullOrWhiteSpace(s) && double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var x))
+        {
+            return x;
+        }
+
+        return 0d;
     }
 }
