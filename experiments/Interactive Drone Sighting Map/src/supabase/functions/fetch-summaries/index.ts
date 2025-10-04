@@ -17,7 +17,7 @@ serve(async (req) => {
 
   try {
     console.log('Fetching summaries from Lambda endpoint...');
-    
+
     // Fetch from Lambda
     const response = await fetch(LAMBDA_API_URL, {
       method: 'GET',
@@ -46,7 +46,7 @@ serve(async (req) => {
     });
   } catch (error) {
     console.error('Error fetching summaries:', error);
-    
+
     return new Response(
       JSON.stringify({
         error: true,

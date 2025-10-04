@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
+import { mockShelters } from "../lib/mockData";
 
 export type MilitaryViewMode = "datapoints" | "incidents";
 
@@ -71,16 +72,27 @@ function angleDeltaDeg(from: number, to: number): number {
   return ((to - from + 540) % 360) - 180;
 }
 
-function initialBearing(lat1: number, lng1: number, lat2: number, lng2: number): number {
+function initialBearing(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number {
   const φ1 = toRad(lat1);
   const φ2 = toRad(lat2);
   const Δλ = toRad(lng2 - lng1);
   const y = Math.sin(Δλ) * Math.cos(φ2);
-  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+  const x =
+    Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
   return normalizeBearingDeg(toDeg(Math.atan2(y, x)));
 }
 
-function destinationPoint(lat: number, lng: number, bearingDeg: number, distanceKm: number): { lat: number; lng: number } {
+function destinationPoint(
+  lat: number,
+  lng: number,
+  bearingDeg: number,
+  distanceKm: number
+): { lat: number; lng: number } {
   const R = 6371;
   const δ = distanceKm / R;
   const θ = toRad(bearingDeg);
@@ -114,7 +126,12 @@ function clamp(x: number, lo: number, hi: number): number {
 function pathLengthKm(points: { lat: number; lng: number }[]): number {
   let sum = 0;
   for (let i = 1; i < points.length; i++) {
-    sum += calculateDistance(points[i - 1].lat, points[i - 1].lng, points[i].lat, points[i].lng);
+    sum += calculateDistance(
+      points[i - 1].lat,
+      points[i - 1].lng,
+      points[i].lat,
+      points[i].lng
+    );
   }
   return sum;
 }
@@ -128,8 +145,22 @@ function buildProjectedFromActual(
   const segBearings: number[] = [];
   const segDists: number[] = [];
   for (let i = 1; i < n; i++) {
-    segBearings.push(initialBearing(actual[i - 1].lat, actual[i - 1].lng, actual[i].lat, actual[i].lng));
-    segDists.push(calculateDistance(actual[i - 1].lat, actual[i - 1].lng, actual[i].lat, actual[i].lng));
+    segBearings.push(
+      initialBearing(
+        actual[i - 1].lat,
+        actual[i - 1].lng,
+        actual[i].lat,
+        actual[i].lng
+      )
+    );
+    segDists.push(
+      calculateDistance(
+        actual[i - 1].lat,
+        actual[i - 1].lng,
+        actual[i].lat,
+        actual[i].lng
+      )
+    );
   }
   const k = Math.min(5, segBearings.length);
   const start = segBearings.length - k;
@@ -243,6 +274,10 @@ export function MapView({
   const handleMouseUp = () => {
     setIsDragging(false);
   };
+
+  // const issueEvacuation = (latitude: number, longtitude: number, range: number) => {
+
+  // }
 
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault();
@@ -367,6 +402,47 @@ export function MapView({
       .slice(0, 5)
       .map((s) => s.shelter);
   }, [shelters, clusteredEvents, userMode]);
+
+  const [evacuationZone, setEvacuationZone] = useState<{
+    lat: number;
+    lng: number;
+    range: number;
+  } | null>(null);
+
+  const [evacuationPath, setEvacuationPath] = useState<{
+    from: { lat: number; lng: number };
+    to: { lat: number; lng: number };
+  } | null>(null);
+
+  const issueEvacuation = (
+    latitude: number,
+    longitude: number,
+    range: number
+  ) => {
+    console.log("KURWO");
+    setEvacuationZone({ lat: latitude, lng: longitude, range });
+
+    if (shelters.length > 0) {
+      let closest = shelters[0];
+      let minDist = Infinity;
+
+      for (const s of shelters) {
+        const dist = Math.sqrt(
+          Math.pow(s.latitude - latitude, 2) +
+            Math.pow(s.longitude - longitude, 2)
+        );
+        if (dist < minDist) {
+          minDist = dist;
+          closest = s;
+        }
+      }
+
+      setEvacuationPath({
+        from: { lat: closest.latitude, lng: closest.longitude },
+        to: { lat: latitude, lng: longitude },
+      });
+    }
+  };
 
   return (
     <div
@@ -672,10 +748,9 @@ export function MapView({
 
           const color = getRiskColor(cluster.riskLevel);
 
-          const actualLatLngs =
-            (cluster.trajectory || [])
-              .filter((p) => !p.isProjected)
-              .map((p) => ({ lat: p.lat, lng: p.lng }));
+          const actualLatLngs = (cluster.trajectory || [])
+            .filter((p) => !p.isProjected)
+            .map((p) => ({ lat: p.lat, lng: p.lng }));
 
           const projectedLatLngs = buildProjectedFromActual(actualLatLngs, 12);
 
@@ -693,25 +768,24 @@ export function MapView({
             )
           );
 
-          const projectedPoints =
-            actualPoints.length
-              ? [
-                  { ...actualPoints[actualPoints.length - 1] },
-                  ...projectedLatLngs.map((p) =>
-                    getMarkerPosition(
-                      p.lat,
-                      p.lng,
-                      center.lat,
-                      center.lng,
-                      zoom,
-                      dimensions.width,
-                      dimensions.height,
-                      offset.x,
-                      offset.y
-                    )
-                  ),
-                ]
-              : [];
+          const projectedPoints = actualPoints.length
+            ? [
+                { ...actualPoints[actualPoints.length - 1] },
+                ...projectedLatLngs.map((p) =>
+                  getMarkerPosition(
+                    p.lat,
+                    p.lng,
+                    center.lat,
+                    center.lng,
+                    zoom,
+                    dimensions.width,
+                    dimensions.height,
+                    offset.x,
+                    offset.y
+                  )
+                ),
+              ]
+            : [];
 
           const actualPathD = actualPoints
             .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`)
@@ -1179,13 +1253,112 @@ export function MapView({
                     <div className="pt-2 border-t border-gray-200 text-muted-foreground">
                       {new Date(cluster.timestamp).toLocaleString()}
                     </div>
+                    <div className="flex justify-center pt-2">
+                      <Button
+                        className="cursor-pointer"
+                        onClick={(e) => {
+                          const RANGE = 5;
+                          issueEvacuation(
+                            cluster.latitude,
+                            cluster.longitude,
+                            RANGE
+                          );
+                          e.stopPropagation();
+                        }}
+                      >
+                        Issue Evacuation
+                      </Button>
+                    </div>
                   </div>
                 </div>
               )}
             </div>
           );
         })}
+      {evacuationZone && (
+        <svg
+          className="absolute top-0 left-0 w-full h-full pointer-events-none"
+          style={{ zIndex: 20 }}
+        >
+          {(() => {
+            const centerPos = getMarkerPosition(
+              evacuationZone.lat,
+              evacuationZone.lng,
+              center.lat,
+              center.lng,
+              zoom,
+              dimensions.width,
+              dimensions.height,
+              offset.x,
+              offset.y
+            );
+            console.log("centerPos=>", centerPos);
 
+            // Obliczamy promień w pikselach — 1° szerokości to ok. 111 km
+            const kmPerPixel =
+              (80075 / Math.pow(2, zoom + 8)) *
+              Math.cos((center.lat * Math.PI) / 180);
+            const radiusPx = evacuationZone.range / kmPerPixel;
+
+            return (
+              <>
+                <circle
+                  cx={centerPos.x}
+                  cy={centerPos.y}
+                  r={radiusPx}
+                  fill="rgba(220, 38, 38, 0.15)"
+                  stroke="rgba(220, 38, 38, 0.8)"
+                  strokeWidth="3"
+                />
+              </>
+            );
+          })()}
+        </svg>
+      )}
+
+      {evacuationPath && (
+        <svg
+          className="absolute top-0 left-0 w-full h-full pointer-events-none"
+          style={{ zIndex: 25 }}
+        >
+          {(() => {
+            const fromPos = getMarkerPosition(
+              evacuationPath.from.lat,
+              evacuationPath.from.lng,
+              center.lat,
+              center.lng,
+              zoom,
+              dimensions.width,
+              dimensions.height,
+              offset.x,
+              offset.y
+            );
+            const toPos = getMarkerPosition(
+              evacuationPath.to.lat,
+              evacuationPath.to.lng,
+              center.lat,
+              center.lng,
+              zoom,
+              dimensions.width,
+              dimensions.height,
+              offset.x,
+              offset.y
+            );
+
+            return (
+              <line
+                x1={fromPos.x}
+                y1={fromPos.y}
+                x2={toPos.x}
+                y2={toPos.y}
+                stroke="rgba(37, 99, 235, 0.8)"
+                strokeWidth="3"
+                strokeDasharray="6 4"
+              />
+            );
+          })()}
+        </svg>
+      )}
       <div
         className="absolute bottom-4 right-4 bg-black/70 text-white px-3 py-2 rounded text-sm map-info"
         style={{ zIndex: 999999 }}

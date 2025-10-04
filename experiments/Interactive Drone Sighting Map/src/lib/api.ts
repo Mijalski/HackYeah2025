@@ -15,7 +15,7 @@ function getApiUrl(endpoint: 'detections' | 'summary' = 'detections'): string {
   } catch (e) {
     // import.meta.env not available
   }
-  
+
   // Fallback to direct Lambda (will likely fail with CORS)
   return endpoint === 'summary' ? LAMBDA_SUMMARY_API_URL : LAMBDA_API_URL;
 }
@@ -150,7 +150,7 @@ function calculateTrajectoryFromPoints(points: Array<{ latitude: number; longitu
   // Calculate heading from last two points
   const lastPoint = points[points.length - 1];
   const secondLastPoint = points[points.length - 2];
-  
+
   const latDiff = lastPoint.latitude - secondLastPoint.latitude;
   const lngDiff = lastPoint.longitude - secondLastPoint.longitude;
   const projectedHeading = (Math.atan2(lngDiff, latDiff) * 180 / Math.PI + 360) % 360;
@@ -162,11 +162,11 @@ function calculateTrajectoryFromPoints(points: Array<{ latitude: number; longitu
   // Add projected future points
   const projectionTime = 30; // minutes
   const projectionDistance = (estimatedSpeed / 60) * projectionTime; // km
-  
+
   const headingRad = (projectedHeading * Math.PI) / 180;
   const latDelta = (projectionDistance / 111) * Math.cos(headingRad);
   const lngDelta = (projectionDistance / (111 * Math.cos((lastPoint.latitude * Math.PI) / 180))) * Math.sin(headingRad);
-  
+
   // Add intermediate projected points
   for (let t = 6; t <= projectionTime; t += 6) {
     const ratio = t / projectionTime;
@@ -188,13 +188,13 @@ function transformAPIDetection(apiDetection: APIDetection, index: number): Drone
   const sensorType = mapSensorType(apiDetection.sensorType);
   const detectionSource = mapDetectionSource(apiDetection.detectionSource);
   const classification = mapClassification(apiDetection.classification);
-  
+
   // Generate detection ID from timestamp
   const detectionId = `DET-API-${timestamp.getFullYear()}${String(timestamp.getMonth() + 1).padStart(2, '0')}${String(timestamp.getDate()).padStart(2, '0')}-${String(timestamp.getHours()).padStart(2, '0')}${String(timestamp.getMinutes()).padStart(2, '0')}${String(timestamp.getSeconds()).padStart(2, '0')}-${index}`;
-  
+
   // Generate sensor ID based on sensor type
   const sensorId = `SNR-${apiDetection.sensorType.toUpperCase()}-${String(index + 1).padStart(3, '0')}`;
-  
+
   return {
     detection_id: detectionId,
     timestamp_utc: timestamp,
@@ -222,15 +222,15 @@ function transformAPIDetection(apiDetection: APIDetection, index: number): Drone
 function transformAPISummary(apiSummary: APISummary, index: number): ClusteredEvent {
   const timestamp = new Date(apiSummary.timestampUtc);
   const riskLevel = mapSeverityToRiskLevel(apiSummary.severity);
-  
+
   // Calculate center point (average of all points)
   const centerLat = apiSummary.points.reduce((sum, p) => sum + p.latitude, 0) / apiSummary.points.length;
   const centerLng = apiSummary.points.reduce((sum, p) => sum + p.longitude, 0) / apiSummary.points.length;
-  
+
   // Create synthetic events for each point (for compatibility)
   const events: DroneEvent[] = apiSummary.points.map((point, pointIndex) => {
     const detectionId = `DET-SUM-${timestamp.getFullYear()}${String(timestamp.getMonth() + 1).padStart(2, '0')}${String(timestamp.getDate()).padStart(2, '0')}-${String(timestamp.getHours()).padStart(2, '0')}${String(timestamp.getMinutes()).padStart(2, '0')}-${index}-${pointIndex}`;
-    
+
     return {
       detection_id: detectionId,
       timestamp_utc: timestamp,
@@ -248,10 +248,10 @@ function transformAPISummary(apiSummary: APISummary, index: number): ClusteredEv
       description: apiSummary.description,
     };
   });
-  
+
   // Calculate trajectory from points
   const trajectoryData = calculateTrajectoryFromPoints(apiSummary.points, timestamp);
-  
+
   // Determine pattern based on severity and description
   let pattern: 'crossing' | 'hovering' | 'surveillance' | 'transit' = 'transit';
   const desc = apiSummary.description.toLowerCase();
@@ -262,7 +262,7 @@ function transformAPISummary(apiSummary: APISummary, index: number): ClusteredEv
   } else if (desc.includes('surveillance') || desc.includes('monitoring')) {
     pattern = 'surveillance';
   }
-  
+
   return {
     id: `incident-${index + 1}`,
     latitude: centerLat,
@@ -289,10 +289,10 @@ export async function fetchDetections(): Promise<DroneEvent[]> {
 
     // Add Supabase anon key if available and using Supabase proxy
     try {
-      if (typeof import.meta !== 'undefined' && 
-          import.meta.env?.VITE_SUPABASE_URL && 
-          import.meta.env?.VITE_SUPABASE_ANON_KEY &&
-          apiUrl.includes('functions/v1/')) {
+      if (typeof import.meta !== 'undefined' &&
+        import.meta.env?.VITE_SUPABASE_URL &&
+        import.meta.env?.VITE_SUPABASE_ANON_KEY &&
+        apiUrl.includes('functions/v1/')) {
         headers['Authorization'] = `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`;
       }
     } catch (e) {
@@ -314,16 +314,16 @@ export async function fetchDetections(): Promise<DroneEvent[]> {
     }
 
     const data = await response.json();
-    
+
     // Handle error responses from proxy
     if (data.error) {
       console.error('API error response:', data);
       throw new Error(data.message || 'API returned an error');
     }
-    
+
     // Handle different possible response formats
     let detections: APIDetection[];
-    
+
     if (Array.isArray(data)) {
       detections = data;
     } else if (data.detections && Array.isArray(data.detections)) {
@@ -340,7 +340,7 @@ export async function fetchDetections(): Promise<DroneEvent[]> {
   } catch (error) {
     // Log for debugging
     console.error('API fetch error:', error);
-    
+
     // Re-throw with appropriate error message
     if (error instanceof Error) {
       if (error.name === 'AbortError') {
@@ -367,10 +367,10 @@ export async function fetchSummaries(): Promise<ClusteredEvent[]> {
 
     // Add Supabase anon key if available and using Supabase proxy
     try {
-      if (typeof import.meta !== 'undefined' && 
-          import.meta.env?.VITE_SUPABASE_URL && 
-          import.meta.env?.VITE_SUPABASE_ANON_KEY &&
-          apiUrl.includes('functions/v1/')) {
+      if (typeof import.meta !== 'undefined' &&
+        import.meta.env?.VITE_SUPABASE_URL &&
+        import.meta.env?.VITE_SUPABASE_ANON_KEY &&
+        apiUrl.includes('functions/v1/')) {
         headers['Authorization'] = `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`;
       }
     } catch (e) {
@@ -392,16 +392,16 @@ export async function fetchSummaries(): Promise<ClusteredEvent[]> {
     }
 
     const data = await response.json();
-    
+
     // Handle error responses from proxy
     if (data.error) {
       console.error('API error response:', data);
       throw new Error(data.message || 'API returned an error');
     }
-    
+
     // Handle different possible response formats
     let summaries: APISummary[];
-    
+
     if (Array.isArray(data)) {
       summaries = data;
     } else if (data.summaries && Array.isArray(data.summaries)) {
@@ -418,7 +418,7 @@ export async function fetchSummaries(): Promise<ClusteredEvent[]> {
   } catch (error) {
     // Log for debugging
     console.error('API fetch summaries error:', error);
-    
+
     // Re-throw with appropriate error message
     if (error instanceof Error) {
       if (error.name === 'AbortError') {
