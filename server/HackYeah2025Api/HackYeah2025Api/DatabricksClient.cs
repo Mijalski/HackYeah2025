@@ -104,9 +104,9 @@ public sealed class DatabricksClient
             }
 
             var ts = row[0].GetDateTime();
-            var lat = row[1].GetDouble();
-            var lon = row[2].GetDouble();
-            var conf = row[3].GetDouble();
+            var isLatOk = double.TryParse(row[1].GetString(), out var lat);
+            var isLonOk = double.TryParse(row[2].GetString(), out var lon);
+            var isConfOk = double.TryParse(row[3].GetString(), out var conf);
             var sensor = row[4].GetString() ?? string.Empty;
             var src = row[5].GetString() ?? string.Empty;
             var cls = row[6].GetString() ?? string.Empty;
