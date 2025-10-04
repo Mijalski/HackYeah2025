@@ -4,8 +4,6 @@ using System.Text.Json;
 
 namespace HackYeah2025Api;
 
-public sealed record ThreatDetecion(DateTime TimestampUtc, double Latitude, double Longitude, double Confidence, string SensorType, string DetectionSource, string Classification);
-
 public sealed class DatabricksClient
 {
     private readonly IHttpClientFactory _httpClientFactory;
@@ -21,7 +19,7 @@ public sealed class DatabricksClient
         _token = token;
     }
 
-    public async Task<IReadOnlyList<ThreatDetecion>> QueryDetectionsAsync(CancellationToken ct)
+    public async Task<IReadOnlyList<ThreatDetection>> QueryDetectionsAsync(CancellationToken ct)
     {
         var client = _httpClientFactory.CreateClient();
         client.BaseAddress = new Uri($"https://{_host}");
@@ -80,22 +78,22 @@ public sealed class DatabricksClient
             }
         }
 
-        return Array.Empty<ThreatDetecion>();
+        return Array.Empty<ThreatDetection>();
     }
 
-    private static IReadOnlyList<ThreatDetecion> ParseRows(JsonElement root)
+    private static IReadOnlyList<ThreatDetection> ParseRows(JsonElement root)
     {
         if (!root.TryGetProperty("result", out var result))
         {
-            return Array.Empty<ThreatDetecion>();
+            return Array.Empty<ThreatDetection>();
         }
 
         if (!result.TryGetProperty("data_array", out var data))
         {
-            return Array.Empty<ThreatDetecion>();
+            return Array.Empty<ThreatDetection>();
         }
 
-        var list = new List<ThreatDetecion>(data.GetArrayLength());
+        var list = new List<ThreatDetection>(data.GetArrayLength());
         foreach (var row in data.EnumerateArray())
         {
             if (row.ValueKind != JsonValueKind.Array)
@@ -111,7 +109,7 @@ public sealed class DatabricksClient
             var src = row[5].GetString() ?? string.Empty;
             var cls = row[6].GetString() ?? string.Empty;
 
-            list.Add(new ThreatDetecion(ts, lat, lon, conf, sensor, src, cls));
+            list.Add(new ThreatDetection(ts, lat, lon, conf, sensor, src, cls));
         }
 
         return list;
