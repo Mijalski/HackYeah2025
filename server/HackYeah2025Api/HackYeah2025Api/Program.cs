@@ -56,6 +56,7 @@ public static class Program
             var summaries = new List<ThreatSummary>
             {
                 new(
+                    "abc",
                     DateTime.UtcNow,
                     new List<Point>
                     {
@@ -69,6 +70,7 @@ public static class Program
                     "Suspicious network activity detected near Bia³ystok"
                 ),
                 new(
+                    "abc1",
                     DateTime.UtcNow.AddMinutes(-10),
                     new List<Point>
                     {
@@ -82,6 +84,7 @@ public static class Program
                     "Potential coordinated threat detected in Warsaw"
                 ),
                 new(
+                    "xyz",
                     DateTime.UtcNow.AddMinutes(-25),
                     new List<Point>
                     {
@@ -95,6 +98,7 @@ public static class Program
                     "Malware communication pattern detected in Kraków"
                 ),
                 new(
+                    "asdas",
                     DateTime.UtcNow.AddMinutes(-40),
                     new List<Point>
                     {
@@ -108,6 +112,7 @@ public static class Program
                     "Anomalous login attempts originating from Wroc³aw"
                 ),
                 new(
+                    "eeee",
                     DateTime.UtcNow.AddMinutes(-55),
                     new List<Point>
                     {
@@ -121,6 +126,7 @@ public static class Program
                     "Potential data exfiltration detected in Gdañsk"
                 ),
                 new(
+                    "rrrr",
                     DateTime.UtcNow.AddMinutes(-70),
                     new List<Point>
                     {
@@ -134,6 +140,7 @@ public static class Program
                     "Cross-border intrusion attempts near Lviv"
                 ),
                 new(
+                    "bbb",
                     DateTime.UtcNow.AddMinutes(-90),
                     new List<Point>
                     {
@@ -147,6 +154,7 @@ public static class Program
                     "DDoS probing patterns observed in Poznañ"
                 ),
                 new(
+                    "bb2b",
                     DateTime.UtcNow.AddMinutes(-110),
                     new List<Point>
                     {
@@ -160,6 +168,7 @@ public static class Program
                     "Botnet activity cluster detected near Katowice"
                 ),
                 new(
+                    "bb1232b",
                     DateTime.UtcNow.AddMinutes(-130),
                     new List<Point>
                     {
@@ -173,6 +182,7 @@ public static class Program
                     "Suspicious network behavior extending to Vilnius"
                 ),
                 new(
+                    "5555bbb",
                     DateTime.UtcNow.AddMinutes(-160),
                     new List<Point>
                     {
@@ -186,6 +196,7 @@ public static class Program
                     "Large-scale anomalous communication detected in Brno"
                 ),
                 new(
+                    "1111",
                     DateTime.UtcNow.AddMinutes(-180),
                     new List<Point>
                     {
@@ -199,6 +210,7 @@ public static class Program
                     "Vertical anomaly line detected in Berlin"
                 ),
                 new(
+                    "666bbb",
                     DateTime.UtcNow.AddMinutes(-200),
                     new List<Point>
                     {

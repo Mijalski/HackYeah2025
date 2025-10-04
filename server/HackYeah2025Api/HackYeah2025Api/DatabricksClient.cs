@@ -1,11 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Net.Http;
-using System.Net.Http.Headers;
+﻿using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace HackYeah2025Api;
 
@@ -32,7 +27,7 @@ public sealed class DatabricksClient
 
         var body = new
         {
-            statement = "select timestamp_utc,latitude,longitude,confidence,sensor_type,detection_source,classification from de_ml_ws.default.silver_data",
+            statement = "select timestamp_utc,latitude,longitude,confidence,sensor_type,detection_source,classification FROM de_ml_ws_3660604388778488.default.silver_data_layer",
             warehouse_id = _warehouseId,
             wait_timeout = "15s",
             disposition = "INLINE"
@@ -119,7 +114,7 @@ public sealed class DatabricksClient
             IEnumerable<Point> points = ParsePoints(row[2]);
             var description = row[4].GetString() ?? string.Empty;
 
-            list.Add(new ThreatSummary(id, timestampUtc, points, row[3].GetString(), description));
+            list.Add(new ThreatSummary(id, timestampUtc, points, int.Parse(row[3].GetString()), description));
         }
 
         return list;
