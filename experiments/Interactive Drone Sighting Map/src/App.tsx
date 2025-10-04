@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
 import { Badge } from './components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './components/ui/tooltip';
 import { MapPin, Activity, Shield, Plus, LogOut, Users, AlertTriangle, Info, AlertCircle, AlertOctagon, Brain, Circle, RefreshCw, InfoIcon } from 'lucide-react';
-import { mockEvents, mockClusteredEvents, mockShelters } from './lib/mockData';
+import { mockShelters } from './lib/mockData';
 import { fetchDetections } from './lib/api';
 import { DroneEvent, UserMode, EvacuationOrder } from './types';
 import { toast } from 'sonner@2.0.3';
@@ -47,23 +47,13 @@ export default function App() {
         });
       }
     } catch (error) {
-      // Silently fall back to mock data on initial load
-      if (events.length === 0) {
-        setEvents(mockEvents);
-        setUsingMockData(true);
-        // Only show toast if user manually tried to refresh
-        if (manualRefresh) {
-          toast.info('API unavailable', {
-            description: 'Using demo data. The live API endpoint may have CORS restrictions.',
-          });
-        }
-      } else {
-        // Show error only on manual refresh attempts
-        if (manualRefresh) {
-          toast.error('Cannot connect to API', {
-            description: 'Continuing with existing data.',
-          });
-        }
+      // No fallback to mock data - show error and keep empty
+      setUsingMockData(true);
+      
+      if (manualRefresh) {
+        toast.error('Cannot connect to API', {
+          description: 'API unavailable due to CORS. Please configure CORS on your Lambda endpoint or connect Supabase.',
+        });
       }
     } finally {
       setIsLoadingEvents(false);
@@ -164,23 +154,23 @@ export default function App() {
           <div className="flex items-center gap-4">
             <TooltipProvider>
               <div className="flex items-center gap-2 bg-muted px-4 py-2 rounded-lg">
-                <Activity className="w-4 h-4 text-green-500 animate-pulse" />
-                <span className="text-muted-foreground">System Active</span>
+                <Activity className={`w-4 h-4 ${events.length > 0 ? 'text-green-500 animate-pulse' : 'text-orange-500'}`} />
+                <span className="text-muted-foreground">System {events.length > 0 ? 'Active' : 'Waiting'}</span>
                 <Badge variant="secondary">{events.length} Events</Badge>
-                {usingMockData && (
+                {usingMockData && events.length === 0 && (
                   <Tooltip>
                     <TooltipTrigger>
-                      <Badge variant="outline" className="text-blue-600 border-blue-600 cursor-help gap-1">
-                        <InfoIcon className="w-3 h-3" />
-                        Demo Data
+                      <Badge variant="outline" className="text-orange-600 border-orange-600 cursor-help gap-1">
+                        <AlertCircle className="w-3 h-3" />
+                        API Unavailable
                       </Badge>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>Using sample data - API endpoint unavailable</p>
+                      <p>Cannot connect to API - configure CORS or use Supabase proxy</p>
                     </TooltipContent>
                   </Tooltip>
                 )}
-                {lastFetchTime && !usingMockData && (
+                {lastFetchTime && !usingMockData && events.length > 0 && (
                   <span className="text-muted-foreground text-xs ml-2">
                     Live • Updated {lastFetchTime.toLocaleTimeString()}
                   </span>
@@ -416,10 +406,22 @@ export default function App() {
                   <p className="text-muted-foreground">Loading detection data...</p>
                 </div>
               </div>
+            ) : events.length === 0 ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center">
+                  <AlertCircle className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="mb-2">No Detections Available</h3>
+                  <p className="text-muted-foreground mb-4">Waiting for live API data...</p>
+                  <Button onClick={() => loadDetections(true)} variant="default">
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Try Connecting to API
+                  </Button>
+                </div>
+              </div>
             ) : (
               <MapView
                 events={events}
-                clusteredEvents={mockClusteredEvents}
+                clusteredEvents={[]}
                 shelters={mockShelters}
                 userMode={userMode}
                 militaryViewMode={militaryViewMode}
@@ -460,7 +462,7 @@ export default function App() {
       <EvacuationDialog
         open={evacuationDialogOpen}
         onOpenChange={setEvacuationDialogOpen}
-        incidents={mockClusteredEvents}
+        incidents={[]}
         shelters={mockShelters}
         onIssue={handleEvacuationIssue}
       />
