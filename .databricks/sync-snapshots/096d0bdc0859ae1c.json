@@ -16,7 +16,6 @@
     "frontend/vite.config.ts": "2025-10-04T13:47:02.020486209+02:00",
     "package.json": "2025-10-04T13:47:03.09783663+02:00",
     "requirements.txt": "2025-10-04T13:47:03.776376244+02:00",
-    "server/README.md": "2025-10-04T13:45:04.575875202+02:00",
     "tsconfig.json": "2025-10-04T13:47:04.187312524+02:00"
   },
   "local_to_remote_names": {
@@ -33,7 +32,6 @@
     "frontend/vite.config.ts": "frontend/vite.config.ts",
     "package.json": "package.json",
     "requirements.txt": "requirements.txt",
-    "server/README.md": "server/README.md",
     "tsconfig.json": "tsconfig.json"
   },
   "remote_to_local_names": {
@@ -50,7 +48,6 @@
     "frontend/vite.config.ts": "frontend/vite.config.ts",
     "package.json": "package.json",
     "requirements.txt": "requirements.txt",
-    "server/README.md": "server/README.md",
     "tsconfig.json": "tsconfig.json"
   }
 }
