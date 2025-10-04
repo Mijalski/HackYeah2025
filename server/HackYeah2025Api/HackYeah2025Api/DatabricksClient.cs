@@ -1,4 +1,5 @@
-﻿using System.Net.Http.Headers;
+﻿using System.Globalization;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 
@@ -19,15 +20,19 @@ public sealed class DatabricksClient
         _token = token;
     }
 
-    public async Task<IReadOnlyList<ThreatDetection>> QueryDetectionsAsync(CancellationToken ct)
+    public async Task<IReadOnlyList<ThreatDetection>> QueryDetectionsAsync(DateTimeOffset? fromUtc, CancellationToken ct)
     {
         var client = _httpClientFactory.CreateClient();
         client.BaseAddress = new Uri($"https://{_host}");
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _token);
 
+        var where = fromUtc.HasValue
+            ? $" WHERE timestamp_utc >= TIMESTAMP '{fromUtc.Value.UtcDateTime:yyyy-MM-dd HH:mm:ss}'"
+            : string.Empty;
+
         var body = new
         {
-            statement = "select timestamp_utc,latitude,longitude,confidence,sensor_type,detection_source,classification FROM de_ml_ws_3660604388778488.default.silver_data_layer",
+            statement = $"select timestamp_utc,latitude,longitude,confidence,sensor_type,detection_source,classification FROM de_ml_ws_3660604388778488.default.silver_data_layer{where}",
             warehouse_id = _warehouseId,
             wait_timeout = "15s",
             disposition = "INLINE"
@@ -56,15 +61,19 @@ public sealed class DatabricksClient
         return ParseDetectionRows(root);
     }
 
-    public async Task<IReadOnlyList<ThreatSummary>> QuerySummariesAsync(CancellationToken ct)
+    public async Task<IReadOnlyList<ThreatSummary>> QuerySummariesAsync(DateTimeOffset? fromUtc, CancellationToken ct)
     {
         var client = _httpClientFactory.CreateClient();
         client.BaseAddress = new Uri($"https://{_host}");
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _token);
 
+        var where = fromUtc.HasValue
+            ? $" WHERE timestamp_utc >= TIMESTAMP '{fromUtc.Value.UtcDateTime:yyyy-MM-dd HH:mm:ss}'"
+            : string.Empty;
+
         var body = new
         {
-            statement = "select incident_id,timestamp_utc,data_points,risk_level,summary from de_ml_ws.default.incident_summaries",
+            statement = $"select incident_id,timestamp_utc,data_points,risk_level,summary from de_ml_ws.default.incident_summaries{where}",
             warehouse_id = _warehouseId,
             wait_timeout = "15s",
             disposition = "INLINE"
@@ -114,7 +123,7 @@ public sealed class DatabricksClient
             IEnumerable<Point> points = ParsePoints(row[2]);
             var description = row[4].GetString() ?? string.Empty;
 
-            list.Add(new ThreatSummary(id, timestampUtc, points, int.Parse(row[3].GetString()), description));
+            list.Add(new ThreatSummary(id, timestampUtc, points, int.Parse(row[3].GetString(), CultureInfo.InvariantCulture), description));
         }
 
         return list;
@@ -178,10 +187,22 @@ public sealed class DatabricksClient
                 continue;
             }
 
-            var ts = row[0].GetDateTime();
-            var isLatOk = double.TryParse(row[1].GetString(), out var lat);
-            var isLonOk = double.TryParse(row[2].GetString(), out var lon);
-            var isConfOk = double.TryParse(row[3].GetString(), out var conf);
+            DateTime ts = DateTime.MinValue;
+            if (row[0].ValueKind == JsonValueKind.String)
+            {
+                var s = row[0].GetString();
+                if (!string.IsNullOrWhiteSpace(s))
+                {
+                    if (!DateTime.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out ts))
+                    {
+                        DateTime.TryParseExact(s, "dd.MM.yyyy HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out ts);
+                    }
+                }
+            }
+
+            var isLatOk = double.TryParse(row[1].GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var lat);
+            var isLonOk = double.TryParse(row[2].GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var lon);
+            var isConfOk = double.TryParse(row[3].GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var conf);
             var sensor = row[4].GetString() ?? string.Empty;
             var src = row[5].GetString() ?? string.Empty;
             var cls = row[6].GetString() ?? string.Empty;

@@ -1,3 +1,7 @@
+using System.Globalization;
+using HackYeah2025Api;
+using Microsoft.AspNetCore.Mvc;
+
 namespace HackYeah2025Api;
 
 public static class Program
@@ -35,20 +39,38 @@ public static class Program
         app.UseHttpsRedirection();
         app.UseCors("AllowHackYeahClients");
 
-        app.MapGet("/raw-data", async (DatabricksClientFactory factory, CancellationToken ct) =>
+        app.MapGet("/raw-data", async (DatabricksClientFactory factory, [FromQuery(Name = "from")] string? from, CancellationToken ct) =>
+        {
+            var client = factory.Create();
+            DateTimeOffset? fromUtc = null;
+            if (!string.IsNullOrWhiteSpace(from))
             {
-                var client = factory.Create();
-                var rows = await client.QueryDetectionsAsync(ct);
-                return Results.Ok(rows);
-            })
+                if (DateTimeOffset.TryParse(from, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var dto))
+                {
+                    fromUtc = dto.ToUniversalTime();
+                }
+            }
+
+            var rows = await client.QueryDetectionsAsync(fromUtc, ct);
+            return Results.Ok(rows);
+        })
             .WithName("GetRawThreats");
 
-        app.MapGet("/summary", async (DatabricksClientFactory factory, CancellationToken ct) =>
+        app.MapGet("/summary", async (DatabricksClientFactory factory, [FromQuery(Name = "from")] string? from, CancellationToken ct) =>
+        {
+            var client = factory.Create();
+            DateTimeOffset? fromUtc = null;
+            if (!string.IsNullOrWhiteSpace(from))
             {
-                var client = factory.Create();
-                var rows = await client.QueryDetectionsAsync(ct);
-                return Results.Ok(rows);
-            })
+                if (DateTimeOffset.TryParse(from, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var dto))
+                {
+                    fromUtc = dto.ToUniversalTime();
+                }
+            }
+
+            var rows = await client.QuerySummariesAsync(fromUtc, ct);
+            return Results.Ok(rows);
+        })
             .WithName("GetSummary");
 
         app.MapGet("/summary-mock", async (DatabricksClientFactory factory, CancellationToken ct) =>
@@ -227,7 +249,6 @@ public static class Program
 
             return Results.Ok(summaries);
         });
-
 
         app.Run();
     }
