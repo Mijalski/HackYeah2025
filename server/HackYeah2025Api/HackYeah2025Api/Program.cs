@@ -89,7 +89,8 @@ public static class Program
                         new(53.1340, 23.1710)
                     },
                     2,
-                    "Suspicious network activity detected near Bia³ystok"
+                    "Suspicious network activity detected near Bia³ystok",
+                    1
                 ),
                 new(
                     "abc1",
@@ -103,7 +104,8 @@ public static class Program
                         new(52.2310, 21.0100)
                     },
                     4,
-                    "Potential coordinated threat detected in Warsaw"
+                    "Potential coordinated threat detected in Warsaw",
+                    3.01
                 ),
                 new(
                     "xyz",
@@ -117,7 +119,8 @@ public static class Program
                         new(50.0620, 19.9310)
                     },
                     3,
-                    "Malware communication pattern detected in Kraków"
+                    "Malware communication pattern detected in Kraków",
+                    15
                 ),
                 new(
                     "asdas",
@@ -131,7 +134,8 @@ public static class Program
                         new(51.1050, 17.0280)
                     },
                     5,
-                    "Anomalous login attempts originating from Wroc³aw"
+                    "Anomalous login attempts originating from Wroc³aw",
+                    0.1
                 ),
                 new(
                     "eeee",
@@ -145,7 +149,8 @@ public static class Program
                         new(54.3550, 18.6525)
                     },
                     3,
-                    "Potential data exfiltration detected in Gdañsk"
+                    "Potential data exfiltration detected in Gdañsk",
+                    0.5
                 ),
                 new(
                     "rrrr",
@@ -159,7 +164,8 @@ public static class Program
                         new(49.8370, 24.0205)
                     },
                     6,
-                    "Cross-border intrusion attempts near Lviv"
+                    "Cross-border intrusion attempts near Lviv",
+                    12
                 ),
                 new(
                     "bbb",
@@ -173,7 +179,8 @@ public static class Program
                         new(52.4025, 16.9180)
                     },
                     2,
-                    "DDoS probing patterns observed in Poznañ"
+                    "DDoS probing patterns observed in Poznañ",
+                    6
                 ),
                 new(
                     "bb2b",
@@ -187,7 +194,8 @@ public static class Program
                         new(50.2615, 19.0150)
                     },
                     4,
-                    "Botnet activity cluster detected near Katowice"
+                    "Botnet activity cluster detected near Katowice",
+                    4
                 ),
                 new(
                     "bb1232b",
@@ -201,7 +209,8 @@ public static class Program
                         new(54.6850, 25.2720)
                     },
                     5,
-                    "Suspicious network behavior extending to Vilnius"
+                    "Suspicious network behavior extending to Vilnius",
+                    2
                 ),
                 new(
                     "5555bbb",
@@ -215,7 +224,8 @@ public static class Program
                         new(49.1910, 16.5980)
                     },
                     7,
-                    "Large-scale anomalous communication detected in Brno"
+                    "Large-scale anomalous communication detected in Brno",
+                    7
                 ),
                 new(
                     "1111",
@@ -229,7 +239,8 @@ public static class Program
                         new(52.5240, 13.4050)
                     },
                     5,
-                    "Vertical anomaly line detected in Berlin"
+                    "Vertical anomaly line detected in Berlin",
+                    2.05
                 ),
                 new(
                     "666bbb",
@@ -243,7 +254,8 @@ public static class Program
                         new(48.8566, 2.3480)
                     },
                     4,
-                    "Horizontal anomaly line detected in Paris"
+                    "Horizontal anomaly line detected in Paris",
+                    1.55
                 )
             };
 
