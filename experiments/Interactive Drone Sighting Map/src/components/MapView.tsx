@@ -36,14 +36,13 @@ interface MapViewProps {
   onMapClick?: (lat: number, lng: number) => void;
 }
 
-// Calculate distance between two coordinates (Haversine formula)
 function calculateDistance(
   lat1: number,
   lng1: number,
   lat2: number,
   lng2: number
 ): number {
-  const R = 6371; // Earth's radius in km
+  const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLng = ((lng2 - lng1) * Math.PI) / 180;
   const a =
@@ -56,7 +55,104 @@ function calculateDistance(
   return R * c;
 }
 
-// Get icon component based on risk level
+function toRad(d: number): number {
+  return (d * Math.PI) / 180;
+}
+
+function toDeg(r: number): number {
+  return (r * 180) / Math.PI;
+}
+
+function normalizeBearingDeg(d: number): number {
+  return ((d % 360) + 360) % 360;
+}
+
+function angleDeltaDeg(from: number, to: number): number {
+  return ((to - from + 540) % 360) - 180;
+}
+
+function initialBearing(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const φ1 = toRad(lat1);
+  const φ2 = toRad(lat2);
+  const Δλ = toRad(lng2 - lng1);
+  const y = Math.sin(Δλ) * Math.cos(φ2);
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+  return normalizeBearingDeg(toDeg(Math.atan2(y, x)));
+}
+
+function destinationPoint(lat: number, lng: number, bearingDeg: number, distanceKm: number): { lat: number; lng: number } {
+  const R = 6371;
+  const δ = distanceKm / R;
+  const θ = toRad(bearingDeg);
+  const φ1 = toRad(lat);
+  const λ1 = toRad(lng);
+  const sinφ1 = Math.sin(φ1);
+  const cosφ1 = Math.cos(φ1);
+  const sinδ = Math.sin(δ);
+  const cosδ = Math.cos(δ);
+  const sinθ = Math.sin(θ);
+  const cosθ = Math.cos(θ);
+  const sinφ2 = sinφ1 * cosδ + cosφ1 * sinδ * cosθ;
+  const φ2 = Math.asin(sinφ2);
+  const y = sinθ * sinδ * cosφ1;
+  const x = cosδ - sinφ1 * sinφ2;
+  const λ2 = λ1 + Math.atan2(y, x);
+  return { lat: toDeg(φ2), lng: ((toDeg(λ2) + 540) % 360) - 180 };
+}
+
+function median(a: number[]): number {
+  if (a.length === 0) return 0;
+  const s = [...a].sort((x, y) => x - y);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+
+function clamp(x: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, x));
+}
+
+function pathLengthKm(points: { lat: number; lng: number }[]): number {
+  let sum = 0;
+  for (let i = 1; i < points.length; i++) {
+    sum += calculateDistance(points[i - 1].lat, points[i - 1].lng, points[i].lat, points[i].lng);
+  }
+  return sum;
+}
+
+function buildProjectedFromActual(
+  actual: { lat: number; lng: number }[],
+  points: number
+): { lat: number; lng: number; isProjected: true }[] {
+  if (actual.length < 2) return [];
+  const n = actual.length;
+  const segBearings: number[] = [];
+  const segDists: number[] = [];
+  for (let i = 1; i < n; i++) {
+    segBearings.push(initialBearing(actual[i - 1].lat, actual[i - 1].lng, actual[i].lat, actual[i].lng));
+    segDists.push(calculateDistance(actual[i - 1].lat, actual[i - 1].lng, actual[i].lat, actual[i].lng));
+  }
+  const k = Math.min(5, segBearings.length);
+  const start = segBearings.length - k;
+  const turnRates: number[] = [];
+  for (let i = start + 1; i < segBearings.length; i++) {
+    const d = Math.max(segDists[i], 1e-3);
+    turnRates.push(angleDeltaDeg(segBearings[i - 1], segBearings[i]) / d);
+  }
+  const rateDegPerKm = clamp(median(turnRates), -30, 30);
+  const totalLenKm = pathLengthKm(actual);
+  const projLenKm = totalLenKm;
+  const stepKm = projLenKm / points;
+  let pos = actual[n - 1];
+  let brg = segBearings[segBearings.length - 1];
+  const out: { lat: number; lng: number; isProjected: true }[] = [];
+  for (let i = 0; i < points; i++) {
+    pos = destinationPoint(pos.lat, pos.lng, brg, stepKm);
+    out.push({ lat: pos.lat, lng: pos.lng, isProjected: true });
+    brg = normalizeBearingDeg(brg + rateDegPerKm * stepKm);
+  }
+  return out;
+}
+
 function getRiskIcon(riskLevel?: string) {
   switch (riskLevel) {
     case "low":
@@ -72,20 +168,19 @@ function getRiskIcon(riskLevel?: string) {
   }
 }
 
-// Get color based on sensor type
 function getSensorTypeColor(sensorType: string): string {
   switch (sensorType) {
     case "microphone":
-      return "#a855f7"; // purple
+      return "#a855f7";
     case "camera":
-      return "#22c55e"; // green
+      return "#22c55e";
     case "radar":
-      return "#3b82f6"; // blue
+      return "#3b82f6";
     case "visual":
     case "manual":
-      return "#f97316"; // orange
+      return "#f97316";
     default:
-      return "#6b7280"; // gray
+      return "#6b7280";
   }
 }
 
@@ -101,17 +196,14 @@ export function MapView({
   const [selectedEvent, setSelectedEvent] = useState<string | null>(null);
   const mapRef = useRef<HTMLDivElement>(null);
 
-  // Map state - centered on Polish-Belarusian border
   const [center, setCenter] = useState({ lat: 53.0, lng: 23.5 });
   const [zoom, setZoom] = useState(8);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
 
-  // Pan state
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
 
-  // Update dimensions on mount and resize
   useEffect(() => {
     const updateDimensions = () => {
       if (mapRef.current) {
@@ -159,10 +251,8 @@ export function MapView({
     const newZoom = Math.max(3, Math.min(18, zoom + delta));
 
     if (newZoom !== zoom) {
-      // Calculate zoom factor
       const zoomFactor = Math.pow(2, newZoom - zoom);
 
-      // Adjust offset to zoom toward mouse position
       const rect = mapRef.current?.getBoundingClientRect();
       if (rect) {
         const mouseX = e.clientX - rect.left;
@@ -186,7 +276,6 @@ export function MapView({
   const handleMapClick = (e: React.MouseEvent) => {
     if (isDragging) return;
 
-    // Close any open popup
     setSelectedEvent(null);
 
     if (!onMapClick) return;
@@ -256,11 +345,9 @@ export function MapView({
     }
   };
 
-  // Calculate safe shelters for civilian mode
   const safeShelters = useMemo(() => {
     if (userMode !== "civilian") return [];
 
-    // Calculate average distance from each shelter to all threats
     const shelterSafety = shelters.map((shelter) => {
       const distances = clusteredEvents.map((cluster) =>
         calculateDistance(
@@ -275,7 +362,6 @@ export function MapView({
       return { shelter, avgDistance };
     });
 
-    // Sort by average distance (farther is safer) and take top 5
     return shelterSafety
       .sort((a, b) => b.avgDistance - a.avgDistance)
       .slice(0, 5)
@@ -294,7 +380,6 @@ export function MapView({
       onClick={handleMapClick}
       style={{ cursor: isDragging ? "grabbing" : "grab" }}
     >
-      {/* OpenStreetMap Tiles */}
       {tiles.map((tile) => {
         const pos = getTilePosition(
           tile,
@@ -323,7 +408,6 @@ export function MapView({
         );
       })}
 
-      {/* Zoom Controls */}
       <div className="absolute top-4 left-4 z-20 flex flex-col gap-2 zoom-controls">
         <Button
           size="icon"
@@ -352,7 +436,6 @@ export function MapView({
         </div>
       </div>
 
-      {/* Evacuation Order Alert - Civilian Mode */}
       {userMode === "civilian" && evacuationOrders.length > 0 && (
         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-30 max-w-md">
           {evacuationOrders.map((order) => {
@@ -406,7 +489,6 @@ export function MapView({
         </div>
       )}
 
-      {/* Evacuation Routes - Civilian Mode with Active Orders */}
       {userMode === "civilian" &&
         evacuationOrders.map((order) => {
           const incident = clusteredEvents.find(
@@ -455,7 +537,6 @@ export function MapView({
               className="absolute top-0 left-0 w-full h-full pointer-events-none"
               style={{ zIndex: 5 }}
             >
-              {/* Glow effect */}
               <path
                 d={`M ${startPos.x} ${startPos.y} L ${endPos.x} ${endPos.y}`}
                 fill="none"
@@ -464,7 +545,6 @@ export function MapView({
                 strokeOpacity="0.3"
                 filter="blur(8px)"
               />
-              {/* Main route - thicker and more prominent */}
               <path
                 d={`M ${startPos.x} ${startPos.y} L ${endPos.x} ${endPos.y}`}
                 fill="none"
@@ -472,7 +552,6 @@ export function MapView({
                 strokeWidth="6"
                 strokeOpacity="0.9"
               />
-              {/* White center line */}
               <path
                 d={`M ${startPos.x} ${startPos.y} L ${endPos.x} ${endPos.y}`}
                 fill="none"
@@ -481,7 +560,6 @@ export function MapView({
                 strokeOpacity="0.8"
                 strokeDasharray="15 10"
               />
-              {/* Large arrow at shelter end */}
               <polygon
                 points="0,-10 20,0 0,10"
                 fill={routeColor}
@@ -494,7 +572,6 @@ export function MapView({
                 stroke="white"
                 strokeWidth="2"
               />
-              {/* Pulsing circle at evacuation point */}
               <circle
                 cx={startPos.x}
                 cy={startPos.y}
@@ -518,11 +595,9 @@ export function MapView({
           );
         })}
 
-      {/* Routes to safe shelters - Civilian Mode */}
       {userMode === "civilian" &&
         evacuationOrders.length === 0 &&
         safeShelters.map((shelter, idx) => {
-          // Draw routes from threat clusters to this safe shelter
           return clusteredEvents.slice(0, 3).map((cluster, clusterIdx) => {
             const startPos = getMarkerPosition(
               cluster.latitude,
@@ -548,7 +623,6 @@ export function MapView({
               offset.y
             );
 
-            // Color based on priority (top shelters get brighter colors)
             const routeColor =
               idx === 0 ? "#10b981" : idx === 1 ? "#3b82f6" : "#8b5cf6";
 
@@ -558,7 +632,6 @@ export function MapView({
                 className="absolute top-0 left-0 w-full h-full pointer-events-none"
                 style={{ zIndex: 3 }}
               >
-                {/* Glow effect */}
                 <path
                   d={`M ${startPos.x} ${startPos.y} L ${endPos.x} ${endPos.y}`}
                   fill="none"
@@ -568,7 +641,6 @@ export function MapView({
                   strokeDasharray="10 5"
                   filter="blur(3px)"
                 />
-                {/* Main route */}
                 <path
                   d={`M ${startPos.x} ${startPos.y} L ${endPos.x} ${endPos.y}`}
                   fill="none"
@@ -577,7 +649,6 @@ export function MapView({
                   strokeOpacity="0.7"
                   strokeDasharray="10 5"
                 />
-                {/* Arrow at shelter end */}
                 <polygon
                   points="0,-6 12,0 0,6"
                   fill={routeColor}
@@ -595,18 +666,23 @@ export function MapView({
           });
         })}
 
-      {/* Trajectories - Military Mode */}
       {userMode === "military" &&
         clusteredEvents.map((cluster) => {
           if (!cluster.trajectory || cluster.trajectory.length < 2) return null;
 
           const color = getRiskColor(cluster.riskLevel);
 
-          // Convert trajectory points to screen coordinates
-          const trajectoryPath = cluster.trajectory.map((point) =>
+          const actualLatLngs =
+            (cluster.trajectory || [])
+              .filter((p) => !p.isProjected)
+              .map((p) => ({ lat: p.lat, lng: p.lng }));
+
+          const projectedLatLngs = buildProjectedFromActual(actualLatLngs, 12);
+
+          const actualPoints = actualLatLngs.map((p) =>
             getMarkerPosition(
-              point.lat,
-              point.lng,
+              p.lat,
+              p.lng,
               center.lat,
               center.lng,
               zoom,
@@ -617,23 +693,26 @@ export function MapView({
             )
           );
 
-          // Split into actual and projected paths
-          const actualPoints = [];
-          const projectedPoints = [];
+          const projectedPoints =
+            actualPoints.length
+              ? [
+                  { ...actualPoints[actualPoints.length - 1] },
+                  ...projectedLatLngs.map((p) =>
+                    getMarkerPosition(
+                      p.lat,
+                      p.lng,
+                      center.lat,
+                      center.lng,
+                      zoom,
+                      dimensions.width,
+                      dimensions.height,
+                      offset.x,
+                      offset.y
+                    )
+                  ),
+                ]
+              : [];
 
-          for (let i = 0; i < cluster.trajectory.length; i++) {
-            const point = trajectoryPath[i];
-            if (cluster.trajectory[i].isProjected) {
-              if (projectedPoints.length === 0 && actualPoints.length > 0) {
-                projectedPoints.push(actualPoints[actualPoints.length - 1]);
-              }
-              projectedPoints.push(point);
-            } else {
-              actualPoints.push(point);
-            }
-          }
-
-          // Create SVG path strings
           const actualPathD = actualPoints
             .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`)
             .join(" ");
@@ -648,7 +727,6 @@ export function MapView({
               className="absolute top-0 left-0 w-full h-full pointer-events-none"
               style={{ zIndex: 5 }}
             >
-              {/* Actual trajectory path */}
               {actualPathD && (
                 <>
                   <path
@@ -693,8 +771,7 @@ export function MapView({
                 </>
               )}
 
-              {/* Projected trajectory path (dashed) */}
-              {projectedPathD && (
+              {projectedPathD && projectedPoints.length > 1 && (
                 <>
                   <path
                     d={projectedPathD}
@@ -764,7 +841,6 @@ export function MapView({
                 </>
               )}
 
-              {/* Event markers on trajectory */}
               {actualPoints.map((point, i) => (
                 <circle
                   key={`trajectory-point-${i}`}
@@ -780,7 +856,6 @@ export function MapView({
           );
         })}
 
-      {/* Shelters - Show all in military mode, only safe ones in civilian mode */}
       {(userMode === "military" ? shelters : safeShelters).map((shelter) => {
         const pos = getMarkerPosition(
           shelter.latitude,
@@ -806,7 +881,6 @@ export function MapView({
         const shelterColor =
           shelter.type === "military" ? "#7c3aed" : "#2563eb";
 
-        // Highlight recommended shelters in civilian mode
         const isRecommended =
           userMode === "civilian" && safeShelters.indexOf(shelter) < 3;
 
@@ -866,7 +940,6 @@ export function MapView({
         );
       })}
 
-      {/* Individual Data Points - Military Mode with Data Points view */}
       {userMode === "military" &&
         militaryViewMode === "datapoints" &&
         events.map((event) => {
@@ -920,7 +993,6 @@ export function MapView({
                 >
                   <h3 className="mb-2">Detection {event.detection_id}</h3>
                   <div className="space-y-1.5 text-foreground">
-                    {/* Detection Info */}
                     <div className="grid grid-cols-2 gap-x-3 gap-y-1">
                       <div>
                         <strong>Sensor:</strong> {event.sensor_id}
@@ -939,7 +1011,6 @@ export function MapView({
                       </div>
                     </div>
 
-                    {/* Drone Info */}
                     {event.drone_id && (
                       <div className="pt-1.5 border-t border-gray-200">
                         <div>
@@ -948,7 +1019,6 @@ export function MapView({
                       </div>
                     )}
 
-                    {/* Location & Movement */}
                     <div className="pt-1.5 border-t border-gray-200 grid grid-cols-2 gap-x-3 gap-y-1">
                       <div>
                         <strong>Altitude:</strong>{" "}
@@ -969,7 +1039,6 @@ export function MapView({
                       </div>
                     </div>
 
-                    {/* Signal Quality */}
                     <div className="pt-1.5 border-t border-gray-200 grid grid-cols-2 gap-x-3 gap-y-1">
                       <div>
                         <strong>Confidence:</strong>{" "}
@@ -983,7 +1052,6 @@ export function MapView({
                       )}
                     </div>
 
-                    {/* Description */}
                     {event.description && (
                       <div className="pt-1.5 border-t border-gray-200">
                         <div className="text-muted-foreground">
@@ -992,7 +1060,6 @@ export function MapView({
                       </div>
                     )}
 
-                    {/* Timestamps */}
                     <div className="pt-1.5 border-t border-gray-200 text-muted-foreground">
                       <div>
                         Detected:{" "}
@@ -1004,7 +1071,6 @@ export function MapView({
                       </div>
                     </div>
 
-                    {/* Coordinates */}
                     <div className="text-muted-foreground">
                       {event.latitude.toFixed(4)}, {event.longitude.toFixed(4)}
                     </div>
@@ -1015,7 +1081,6 @@ export function MapView({
           );
         })}
 
-      {/* Clustered Incidents - Military Mode with Incidents view */}
       {userMode === "military" &&
         militaryViewMode === "incidents" &&
         clusteredEvents.map((cluster) => {
@@ -1121,7 +1186,6 @@ export function MapView({
           );
         })}
 
-      {/* Map Info */}
       <div
         className="absolute bottom-4 right-4 bg-black/70 text-white px-3 py-2 rounded text-sm map-info"
         style={{ zIndex: 999999 }}

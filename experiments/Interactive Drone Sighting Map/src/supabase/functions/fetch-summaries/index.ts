@@ -1,6 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 
-const LAMBDA_API_URL = 'https://56gjego43e7zbturce52a4i5ni0hpmnb.lambda-url.eu-north-1.on.aws/summary';
+const LAMBDA_API_URL = 'https://56gjego43e7zbturce52a4i5ni0hpmnb.lambda-url.eu-north-1.on.aws/summary-mock';
 
 serve(async (req) => {
   // Handle CORS preflight

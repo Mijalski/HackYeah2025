@@ -2,7 +2,7 @@ import { DroneEvent, ClusteredEvent, TrajectoryPoint } from '../types';
 
 // Direct Lambda endpoints - will fail due to CORS without Supabase proxy
 const LAMBDA_API_URL = 'https://56gjego43e7zbturce52a4i5ni0hpmnb.lambda-url.eu-north-1.on.aws/raw-data';
-const LAMBDA_SUMMARY_API_URL = 'https://56gjego43e7zbturce52a4i5ni0hpmnb.lambda-url.eu-north-1.on.aws/summary';
+const LAMBDA_SUMMARY_API_URL = 'https://56gjego43e7zbturce52a4i5ni0hpmnb.lambda-url.eu-north-1.on.aws/summary-mock';
 
 // Get Supabase proxy URL if available
 function getApiUrl(endpoint: 'detections' | 'summary' = 'detections'): string {
