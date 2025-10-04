@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
         'Accept': 'application/json',
       },
     });
-    console.log('response=>', response)
+
     if (!response.ok) {
       throw new Error(`Lambda returned ${response.status}: ${response.statusText}`);
     }
@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
     });
   } catch (error) {
     console.error('Error fetching from Lambda:', error);
-
+    
     return new Response(
       JSON.stringify({
         error: 'Failed to fetch detections',
