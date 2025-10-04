@@ -46,15 +46,16 @@ function getRiskIcon(riskLevel?: string) {
   }
 }
 
-// Get color based on event type
-function getEventTypeColor(type: string): string {
-  switch (type) {
+// Get color based on sensor type
+function getSensorTypeColor(sensorType: string): string {
+  switch (sensorType) {
     case 'microphone':
       return '#a855f7'; // purple
-    case 'photo':
+    case 'camera':
       return '#22c55e'; // green
-    case 'written':
+    case 'radar':
       return '#3b82f6'; // blue
+    case 'visual':
     case 'manual':
       return '#f97316'; // orange
     default:
@@ -774,21 +775,22 @@ export function MapView({ events, clusteredEvents, shelters, userMode, militaryV
           offset.y
         );
         
-        const color = getEventTypeColor(event.type);
+        const color = getSensorTypeColor(event.sensor_type);
         const isVisible = pos.x >= -50 && pos.x <= dimensions.width + 50 && 
                          pos.y >= -50 && pos.y <= dimensions.height + 50;
-        const isSelected = selectedEvent === event.id;
+        const isSelected = selectedEvent === (event.detection_id || event.id);
 
         if (!isVisible) return null;
 
         return (
           <div
-            key={event.id}
+            key={event.detection_id || event.id}
             className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-transform hover:scale-110"
             style={{ left: pos.x, top: pos.y, zIndex: isSelected ? 9999 : 10 }}
             onClick={(e) => {
               e.stopPropagation();
-              setSelectedEvent(selectedEvent === event.id ? null : event.id);
+              const eventId = event.detection_id || event.id;
+              setSelectedEvent(selectedEvent === eventId ? null : eventId);
             }}
           >
             <div
@@ -796,7 +798,7 @@ export function MapView({ events, clusteredEvents, shelters, userMode, militaryV
               style={{ backgroundColor: color }}
             />
             
-            {selectedEvent === event.id && (
+            {selectedEvent === (event.detection_id || event.id) && (
               <div className="absolute top-8 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-xl p-4 min-w-[320px] max-w-[380px] border border-gray-200 marker-popup" style={{ zIndex: 10 }}>
                 <h3 className="mb-2">Detection {event.detection_id}</h3>
                 <div className="space-y-1.5 text-foreground">

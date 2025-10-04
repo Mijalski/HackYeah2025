@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MapView } from './components/MapView';
 import { EventFeed } from './components/EventFeed';
 import { ReportEventDialog } from './components/ReportEventDialog';
@@ -7,8 +7,10 @@ import { EvacuationDialog } from './components/EvacuationDialog';
 import { Button } from './components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
 import { Badge } from './components/ui/badge';
-import { MapPin, Activity, Shield, Plus, LogOut, Users, AlertTriangle, Info, AlertCircle, AlertOctagon, Brain, Circle } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './components/ui/tooltip';
+import { MapPin, Activity, Shield, Plus, LogOut, Users, AlertTriangle, Info, AlertCircle, AlertOctagon, Brain, Circle, RefreshCw, InfoIcon } from 'lucide-react';
 import { mockEvents, mockClusteredEvents, mockShelters } from './lib/mockData';
+import { fetchDetections } from './lib/api';
 import { DroneEvent, UserMode, EvacuationOrder } from './types';
 import { toast } from 'sonner@2.0.3';
 import { Toaster } from './components/ui/sonner';
@@ -17,7 +19,10 @@ import logoImage from 'figma:asset/39b0edce24ff5dfe942b0f8630d07a3a7127cea9.png'
 export type MilitaryViewMode = 'datapoints' | 'incidents';
 
 export default function App() {
-  const [events, setEvents] = useState<DroneEvent[]>(mockEvents);
+  const [events, setEvents] = useState<DroneEvent[]>([]);
+  const [isLoadingEvents, setIsLoadingEvents] = useState(true);
+  const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
+  const [usingMockData, setUsingMockData] = useState(false);
   const [userMode, setUserMode] = useState<UserMode>('civilian');
   const [militaryViewMode, setMilitaryViewMode] = useState<MilitaryViewMode>('incidents');
   const [isMilitaryLoggedIn, setIsMilitaryLoggedIn] = useState(false);
@@ -26,6 +31,60 @@ export default function App() {
   const [evacuationDialogOpen, setEvacuationDialogOpen] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number }>();
   const [evacuationOrders, setEvacuationOrders] = useState<EvacuationOrder[]>([]);
+
+  // Fetch detections from API
+  const loadDetections = async (manualRefresh = false) => {
+    try {
+      setIsLoadingEvents(true);
+      const detections = await fetchDetections();
+      setEvents(detections);
+      setLastFetchTime(new Date());
+      setUsingMockData(false);
+      
+      if (manualRefresh) {
+        toast.success('Connected to API', {
+          description: `Loaded ${detections.length} live detections`,
+        });
+      }
+    } catch (error) {
+      // Silently fall back to mock data on initial load
+      if (events.length === 0) {
+        setEvents(mockEvents);
+        setUsingMockData(true);
+        // Only show toast if user manually tried to refresh
+        if (manualRefresh) {
+          toast.info('API unavailable', {
+            description: 'Using demo data. The live API endpoint may have CORS restrictions.',
+          });
+        }
+      } else {
+        // Show error only on manual refresh attempts
+        if (manualRefresh) {
+          toast.error('Cannot connect to API', {
+            description: 'Continuing with existing data.',
+          });
+        }
+      }
+    } finally {
+      setIsLoadingEvents(false);
+    }
+  };
+
+  // Load data on mount
+  useEffect(() => {
+    loadDetections();
+  }, []);
+
+  // Auto-refresh every 30 seconds (only if connected to API)
+  useEffect(() => {
+    if (usingMockData) return; // Don't auto-refresh in demo mode
+    
+    const interval = setInterval(() => {
+      loadDetections(false);
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, [usingMockData]);
 
   const handleMapClick = (lat: number, lng: number) => {
     setSelectedLocation({ lat, lng });
@@ -103,11 +162,41 @@ export default function App() {
           </div>
           
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 bg-muted px-4 py-2 rounded-lg">
-              <Activity className="w-4 h-4 text-green-500 animate-pulse" />
-              <span className="text-muted-foreground">System Active</span>
-              <Badge variant="secondary">{events.length} Events</Badge>
-            </div>
+            <TooltipProvider>
+              <div className="flex items-center gap-2 bg-muted px-4 py-2 rounded-lg">
+                <Activity className="w-4 h-4 text-green-500 animate-pulse" />
+                <span className="text-muted-foreground">System Active</span>
+                <Badge variant="secondary">{events.length} Events</Badge>
+                {usingMockData && (
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <Badge variant="outline" className="text-blue-600 border-blue-600 cursor-help gap-1">
+                        <InfoIcon className="w-3 h-3" />
+                        Demo Data
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Using sample data - API endpoint unavailable</p>
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+                {lastFetchTime && !usingMockData && (
+                  <span className="text-muted-foreground text-xs ml-2">
+                    Live • Updated {lastFetchTime.toLocaleTimeString()}
+                  </span>
+                )}
+              </div>
+            </TooltipProvider>
+            
+            <Button
+              onClick={() => loadDetections(true)}
+              variant={usingMockData ? "default" : "outline"}
+              size="sm"
+              disabled={isLoadingEvents}
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${isLoadingEvents ? 'animate-spin' : ''}`} />
+              {isLoadingEvents ? 'Loading...' : usingMockData ? 'Connect to API' : 'Refresh'}
+            </Button>
             
             {isMilitaryLoggedIn ? (
               <div className="flex items-center gap-3">
@@ -248,22 +337,22 @@ export default function App() {
                     </>
                   ) : (
                     <>
-                      <h4 className="text-muted-foreground mb-2">Event Types</h4>
+                      <h4 className="text-muted-foreground mb-2">Sensor Types</h4>
                       <div className="flex items-center gap-2.5">
                         <div className="w-5 h-5 rounded-full bg-[#a855f7] border-2 border-white shadow-sm"></div>
-                        <span>Microphone Signal</span>
+                        <span>Microphone (Acoustic)</span>
                       </div>
                       <div className="flex items-center gap-2.5">
                         <div className="w-5 h-5 rounded-full bg-[#22c55e] border-2 border-white shadow-sm"></div>
-                        <span>Photo</span>
+                        <span>Camera (Optical)</span>
                       </div>
                       <div className="flex items-center gap-2.5">
                         <div className="w-5 h-5 rounded-full bg-[#3b82f6] border-2 border-white shadow-sm"></div>
-                        <span>Written Report</span>
+                        <span>Radar (EM)</span>
                       </div>
                       <div className="flex items-center gap-2.5">
                         <div className="w-5 h-5 rounded-full bg-[#f97316] border-2 border-white shadow-sm"></div>
-                        <span>Manual Input</span>
+                        <span>Visual/Manual</span>
                       </div>
                     </>
                   )}
@@ -320,19 +409,37 @@ export default function App() {
               )}
             </div>
 
-            <MapView
-              events={events}
-              clusteredEvents={mockClusteredEvents}
-              shelters={mockShelters}
-              userMode={userMode}
-              militaryViewMode={militaryViewMode}
-              evacuationOrders={evacuationOrders}
-              onMapClick={handleMapClick}
-            />
+            {isLoadingEvents && events.length === 0 ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center">
+                  <RefreshCw className="w-12 h-12 animate-spin text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground">Loading detection data...</p>
+                </div>
+              </div>
+            ) : (
+              <MapView
+                events={events}
+                clusteredEvents={mockClusteredEvents}
+                shelters={mockShelters}
+                userMode={userMode}
+                militaryViewMode={militaryViewMode}
+                evacuationOrders={evacuationOrders}
+                onMapClick={handleMapClick}
+              />
+            )}
           </TabsContent>
 
           <TabsContent value="feed" className="flex-1 m-0">
-            <EventFeed events={events} />
+            {isLoadingEvents && events.length === 0 ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center">
+                  <RefreshCw className="w-12 h-12 animate-spin text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground">Loading detection data...</p>
+                </div>
+              </div>
+            ) : (
+              <EventFeed events={events} />
+            )}
           </TabsContent>
         </Tabs>
       </div>
