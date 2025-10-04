@@ -123,7 +123,7 @@ public sealed class DatabricksClient
             IEnumerable<Point> points = ParsePoints(row[2]);
             var description = row[4].GetString() ?? string.Empty;
 
-            list.Add(new ThreatSummary(id, timestampUtc, points, int.Parse(row[3].GetString(), CultureInfo.InvariantCulture), description));
+            list.Add(new ThreatSummary(id, timestampUtc, points, int.Parse(row[3].GetString(), CultureInfo.InvariantCulture), description, 1));
         }
 
         return list;
