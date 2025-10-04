@@ -12,7 +12,6 @@ import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
 import { Alert, AlertDescription } from "./ui/alert";
 import {
-  MapPin,
   Info,
   CheckCircle2,
   Paperclip,
@@ -278,7 +277,7 @@ export function ReportEventDialog({
                           variant="ghost"
                           size="sm"
                           onClick={() => handleRemoveAttachment(index)}
-                          className="h-8 w-8 p-0 shrink-0"
+                          className="h-8 w-8 p-0 shrink-0 cursor-pointer"
                         >
                           <X className="w-4 h-4" />
                         </Button>
@@ -295,10 +294,13 @@ export function ReportEventDialog({
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
+              className="cursor-pointer"
             >
               Cancel
             </Button>
-            <Button type="submit">Submit Report</Button>
+            <Button type="submit" className="cursor-pointer">
+              Submit Report
+            </Button>
           </div>
         </form>
       </DialogContent>

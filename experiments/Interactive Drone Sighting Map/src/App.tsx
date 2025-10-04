@@ -187,9 +187,9 @@ export default function App() {
   const handleMilitaryLogout = () => {
     setIsMilitaryLoggedIn(false);
     setUserMode("civilian");
-    toast.info("Logged out", {
-      description: "Switched to civilian mode",
-    });
+    // toast.info("Logged out", {
+    //   description: "Switched to civilian mode",
+    // });
   };
 
   const handleEvacuationIssue = (
@@ -275,11 +275,19 @@ export default function App() {
               </div>
             </TooltipProvider>
 
-            <Button onClick={militaryModeToggle} style={{ width: "140px" }}>
+            <Button
+              onClick={militaryModeToggle}
+              style={{ width: "140px" }}
+              className="cursor-pointer"
+            >
               {isMilitaryLoggedIn ? "Military View" : "Civil View"}
             </Button>
 
-            <Button onClick={() => setReportDialogOpen(true)} size="lg">
+            <Button
+              onClick={() => setReportDialogOpen(true)}
+              size="lg"
+              className="cursor-pointer"
+            >
               <Plus className="w-4 h-4 mr-2" />
               Report Event
             </Button>
@@ -290,13 +298,13 @@ export default function App() {
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
         <Tabs defaultValue="map" className="flex-1 flex flex-col">
-          <div className="border-b border-border bg-card px-6 shrink-0">
-            <TabsList className="h-12">
-              <TabsTrigger value="map" className="gap-2">
+          <div className="border-border bg-card px-6 pt-2">
+            <TabsList className="h-12 px-2 py-1">
+              <TabsTrigger value="map" className="gap-2 cursor-pointer px-4">
                 <MapPin className="w-4 h-4" />
                 Map View
               </TabsTrigger>
-              <TabsTrigger value="feed" className="gap-2">
+              <TabsTrigger value="feed" className="gap-2 cursor-pointer px-4">
                 <Activity className="w-4 h-4" />
                 Live Event Feed
               </TabsTrigger>
@@ -305,7 +313,10 @@ export default function App() {
 
           <TabsContent value="map" className="flex-1 m-0 relative">
             {/* User Mode Indicator */}
-            <div className="absolute top-4 right-4 z-10 bg-card border border-border rounded-lg p-4 shadow-lg">
+            <div
+              className="absolute top-4 right-4 z-10 bg-card border border-border rounded-lg p-4 shadow-lg"
+              style={{ zIndex: 999999 }}
+            >
               <div className="flex items-center gap-3">
                 {userMode === "military" ? (
                   <Shield className="w-5 h-5 text-blue-600" />
@@ -333,7 +344,7 @@ export default function App() {
 
               {/* AI Mode Filter - Military Only */}
               {userMode === "military" && (
-                <div className="mt-4 pt-4 border-t border-border">
+                <div className="mt-4 pt-4 border-t border-border z-[99999]">
                   <div className="flex items-center gap-2 mb-2">
                     <Brain className="w-4 h-4 text-purple-600" />
                     <span className="text-muted-foreground">AI Mode</span>
@@ -347,7 +358,7 @@ export default function App() {
                           : "outline"
                       }
                       onClick={() => setMilitaryViewMode("datapoints")}
-                      className="flex-1"
+                      className="flex-1 cursor-pointer"
                     >
                       <Circle className="w-3 h-3 mr-1.5" />
                       Data Points
@@ -358,7 +369,7 @@ export default function App() {
                         militaryViewMode === "incidents" ? "default" : "outline"
                       }
                       onClick={() => setMilitaryViewMode("incidents")}
-                      className="flex-1"
+                      className="flex-1 cursor-pointer"
                     >
                       <AlertTriangle className="w-3 h-3 mr-1.5" />
                       Incidents
@@ -367,9 +378,11 @@ export default function App() {
                 </div>
               )}
             </div>
-
             {/* Legend */}
-            <div className="absolute bottom-4 left-4 z-10 bg-card border border-border rounded-lg p-4 shadow-lg">
+            <div
+              className="absolute bottom-4 left-4 z-10 bg-card border border-border rounded-lg p-4 shadow-lg"
+              style={{ zIndex: 9999999 }}
+            >
               <h3 className="mb-3">Legend</h3>
               {userMode === "military" ? (
                 <div className="space-y-2.5">
@@ -498,7 +511,6 @@ export default function App() {
                 </div>
               )}
             </div>
-
             {(isLoadingEvents && events.length === 0) ||
             (isLoadingIncidents && incidents.length === 0) ? (
               <div className="flex items-center justify-center h-full">
