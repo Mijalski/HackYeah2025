@@ -520,7 +520,7 @@ export function MapView({
       {/* ALWAYS-SHOWN INCIDENT POPUP (top-left area). Appears when an incident is focused. */}
       {focusedCluster && (
         <div
-          style={{ marginLeft: 75 }}
+          style={{ marginLeft: 75, zIndex: 20000 }}
           className="incident-panel absolute top-4 left-75 z-40 bg-white rounded-lg shadow-2xl  p-4 min-w-[300px] max-w-[360px]"
           onClick={(e) => e.stopPropagation()}
         >
