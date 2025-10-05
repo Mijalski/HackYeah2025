@@ -183,6 +183,7 @@ function buildProjectedFromActual(
 }
 
 function getRiskIcon(riskLevel?: string) {
+  console.log("riskLevel=>", riskLevel);
   switch (riskLevel) {
     case "low":
       return Info;
