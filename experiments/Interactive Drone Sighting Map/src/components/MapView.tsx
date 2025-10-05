@@ -11,7 +11,6 @@ import {
   getTilePosition,
   getMarkerPosition,
   viewportClickToLatLng,
-  Tile,
 } from "../lib/mapUtils";
 import {
   ZoomIn,
@@ -23,7 +22,6 @@ import {
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
-import { mockShelters } from "../lib/mockData";
 
 export type MilitaryViewMode = "datapoints" | "incidents";
 

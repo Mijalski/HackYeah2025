@@ -1,7 +1,7 @@
 // Supabase Edge Function to proxy drone detection data from Lambda
 // This bypasses CORS restrictions by making the request server-side
 
-const LAMBDA_URL = 'https://56gjego43e7zbturce52a4i5ni0hpmnb.lambda-url.eu-north-1.on.aws/summary-mock';
+const LAMBDA_URL = 'https://56gjego43e7zbturce52a4i5ni0hpmnb.lambda-url.eu-north-1.on.aws/summary';
 
 Deno.serve(async (req) => {
   // Handle CORS preflight

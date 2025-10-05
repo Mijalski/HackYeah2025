@@ -295,7 +295,7 @@ export default function App() {
       </header>
 
       {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex">
         <Tabs defaultValue="map" className="flex-1 flex flex-col">
           <div className="border-border bg-card px-6 pt-2">
             <TabsList className="h-12 px-2 py-1">
