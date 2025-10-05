@@ -232,6 +232,19 @@ export function MapView({
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
+  const [focusedIncidentId, setFocusedIncidentId] =
+    useState<string | null>(null);
+
+  const focusedEventIds = useMemo(() => {
+    if (!focusedIncidentId) return null;
+    const cluster = clusteredEvents.find((c) => c.id === focusedIncidentId);
+    if (!cluster) return null;
+    const ids = new Set<string>();
+    for (const ev of cluster.events) {
+      ids.add((ev as any).detection_id ?? (ev as any).id);
+    }
+    return ids;
+  }, [focusedIncidentId, clusteredEvents]);
 
   useEffect(() => {
     const updateDimensions = () => {
@@ -307,18 +320,19 @@ export function MapView({
   };
 
   const handleMapClick = (e: React.MouseEvent) => {
-    if (isDragging) return;
-
+    if (isDragging) {
+      return;
+    }
     setSelectedEvent(null);
-
-    if (!onMapClick) return;
-
+    if (!onMapClick) {
+      return;
+    }
     const rect = mapRef.current?.getBoundingClientRect();
-    if (!rect) return;
-
+    if (!rect) {
+      return;
+    }
     const clickX = e.clientX - rect.left;
     const clickY = e.clientY - rect.top;
-
     const latLng = viewportClickToLatLng(
       clickX,
       clickY,
@@ -672,7 +686,7 @@ export function MapView({
       {userMode === "civilian" &&
         evacuationOrders.length === 0 &&
         safeShelters.map((shelter, idx) => {
-          return clusteredEvents.slice(0, 3).map((cluster, clusterIdx) => {
+          return clusteredEvents.slice(0, 3).map((cluster) => {
             const startPos = getMarkerPosition(
               cluster.latitude,
               cluster.longitude,
@@ -741,15 +755,18 @@ export function MapView({
         })}
 
       {userMode === "military" &&
-        clusteredEvents.map((cluster) => {
+        militaryViewMode === "incidents" &&
+        (focusedIncidentId
+          ? clusteredEvents.filter((c) => c.id === focusedIncidentId)
+          : clusteredEvents
+        ).map((cluster) => {
+          if (selectedEvent !== cluster.id) return null;
           if (!cluster.trajectory || cluster.trajectory.length < 2) return null;
 
           const color = getRiskColor(cluster.riskLevel);
-
           const actualLatLngs = (cluster.trajectory || [])
             .filter((p) => !p.isProjected)
             .map((p) => ({ lat: p.lat, lng: p.lng }));
-
           const projectedLatLngs = buildProjectedFromActual(actualLatLngs, 12);
 
           const actualPoints = actualLatLngs.map((p) =>
@@ -1002,8 +1019,7 @@ export function MapView({
                     </span>
                   </div>
                   <div className="pt-2 border-t border-gray-200 text-muted-foreground">
-                    {shelter.latitude.toFixed(4)},{" "}
-                    {shelter.longitude.toFixed(4)}
+                    {shelter.latitude.toFixed(4)}, {shelter.longitude.toFixed(4)}
                   </div>
                 </div>
               </div>
@@ -1014,7 +1030,12 @@ export function MapView({
 
       {userMode === "military" &&
         militaryViewMode === "datapoints" &&
-        events.map((event) => {
+        (focusedEventIds
+          ? events.filter((event) =>
+              focusedEventIds.has(event.detection_id ?? event.id)
+            )
+          : events
+        ).map((event) => {
           const pos = getMarkerPosition(
             event.latitude,
             event.longitude,
@@ -1110,7 +1131,6 @@ export function MapView({
                         <strong>Course:</strong> {event.course_vector || "N/A"}
                       </div>
                     </div>
-
                     <div className="pt-1.5 border-t border-gray-200 grid grid-cols-2 gap-x-3 gap-y-1">
                       <div>
                         <strong>Confidence:</strong>{" "}
@@ -1118,12 +1138,10 @@ export function MapView({
                       </div>
                       {event.signal_strength_dbm && (
                         <div>
-                          <strong>Signal:</strong> {event.signal_strength_dbm}{" "}
-                          dBm
+                          <strong>Signal:</strong> {event.signal_strength_dbm} dBm
                         </div>
                       )}
                     </div>
-
                     {event.description && (
                       <div className="pt-1.5 border-t border-gray-200">
                         <div className="text-muted-foreground">
@@ -1131,18 +1149,10 @@ export function MapView({
                         </div>
                       </div>
                     )}
-
                     <div className="pt-1.5 border-t border-gray-200 text-muted-foreground">
-                      <div>
-                        Detected:{" "}
-                        {new Date(event.timestamp_utc).toLocaleString()}
-                      </div>
-                      <div>
-                        Ingested:{" "}
-                        {new Date(event.ingestion_time).toLocaleString()}
-                      </div>
+                      <div>Detected: {new Date(event.timestamp_utc).toLocaleString()}</div>
+                      <div>Ingested: {new Date(event.ingestion_time).toLocaleString()}</div>
                     </div>
-
                     <div className="text-muted-foreground">
                       {event.latitude.toFixed(4)}, {event.longitude.toFixed(4)}
                     </div>
@@ -1155,7 +1165,10 @@ export function MapView({
 
       {userMode === "military" &&
         militaryViewMode === "incidents" &&
-        clusteredEvents.map((cluster) => {
+        (focusedIncidentId
+          ? clusteredEvents.filter((c) => c.id === focusedIncidentId)
+          : clusteredEvents
+        ).map((cluster) => {
           const pos = getMarkerPosition(
             cluster.latitude,
             cluster.longitude,
@@ -1167,7 +1180,6 @@ export function MapView({
             offset.x,
             offset.y
           );
-
           const color = getRiskColor(cluster.riskLevel);
           const isVisible =
             pos.x >= -50 &&
@@ -1176,9 +1188,7 @@ export function MapView({
             pos.y <= dimensions.height + 50;
           const isSelected = selectedEvent === cluster.id;
           const RiskIcon = getRiskIcon(cluster.riskLevel);
-
           if (!isVisible) return null;
-
           return (
             <div
               key={cluster.id}
@@ -1190,9 +1200,9 @@ export function MapView({
               }}
               onClick={(e) => {
                 e.stopPropagation();
-                setSelectedEvent(
-                  selectedEvent === cluster.id ? null : cluster.id
-                );
+                const nextSelected = selectedEvent === cluster.id ? null : cluster.id;
+                setSelectedEvent(nextSelected);
+                setFocusedIncidentId((prev) => (prev === cluster.id ? null : cluster.id));
               }}
             >
               <div
@@ -1290,9 +1300,6 @@ export function MapView({
               offset.x,
               offset.y
             );
-            console.log("centerPos=>", centerPos);
-
-            // Obliczamy promień w pikselach — 1° szerokości to ok. 111 km
             const kmPerPixel =
               (80075 / Math.pow(2, zoom + 8)) *
               Math.cos((center.lat * Math.PI) / 180);
@@ -1342,7 +1349,6 @@ export function MapView({
               offset.x,
               offset.y
             );
-
             return (
               <line
                 x1={fromPos.x}

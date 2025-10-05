@@ -224,23 +224,7 @@ function transformAPISummary(apiSummary: APISummary, index: number): ClusteredEv
   const timestampStart = new Date(apiSummary.timestampStartUtc);
   const timestampEnd = new Date(apiSummary.timestampEndUtc);
 
-  // Mapowanie poziomu ryzyka (liczbowy -> tekstowy)
-  const mapRiskLevel = (level: number): 'low' | 'medium' | 'high' | 'critical' => {
-    switch (level) {
-      case 0:
-        return 'low';
-      case 1:
-        return 'medium';
-      case 2:
-        return 'high';
-      case 3:
-        return 'critical';
-      default:
-        return 'low';
-    }
-  };
-
-  const riskLevel = mapRiskLevel(apiSummary.riskLevel);
+  const riskLevel = apiSummary.riskLevel;
 
   // Środek klastra (średnia współrzędnych)
   const centerLat =
