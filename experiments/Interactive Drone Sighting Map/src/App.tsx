@@ -168,9 +168,9 @@ export default function App() {
     };
 
     setEvents([newEvent, ...events]);
-    toast.success("Event reported successfully", {
-      description: `New ${eventData.type} sighting added to the system.`,
-    });
+    // toast.success("Event reported successfully", {
+    //   description: `New ${eventData.type} sighting added to the system.`,
+    // });
   };
 
   const militaryModeToggle = () => {
