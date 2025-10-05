@@ -1,0 +1,28 @@
+{
+    "name": "Python 3",
+    "build": {
+        "dockerfile": "Dockerfile"
+    },
+    "features": {
+        "ghcr.io/devcontainers-extra/features/spark-sdkman:2": {
+            "jdkVersion": "17",
+            "jdkDistro": "tem"
+        }
+    },
+    "remoteEnv": {
+        "DATABRICKS_HOST": "${localEnv:DATABRICKS_HOST}",
+        "DATABRICKS_TOKEN": "${localEnv:DATABRICKS_TOKEN}"
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-python.python",
+                "ms-toolsai.jupyter",
+                "databricks.databricks",
+                "redhat.vscode-yaml"
+            ]
+        }
+    },
+    "postCreateCommand": "databricks configure --host $DATABRICKS_HOST --token --profile DEFAULT"
+}
+
