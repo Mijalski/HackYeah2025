@@ -594,6 +594,7 @@ export function MapView({
                     5
                   )
                 }
+                className="cursor-pointer"
               >
                 Issue Evacuation
               </Button>
