@@ -19,6 +19,7 @@ import {
   Info,
   AlertCircle,
   AlertOctagon,
+  X,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -233,11 +234,11 @@ export function MapView({
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
 
-  // Focused incident (stays until you click the incident again)
+  // Focused incident: controls which incident is "active"
   const [focusedIncidentId, setFocusedIncidentId] =
     useState<string | null>(null);
 
-  // All datapoint IDs that belong to the focused incident
+  // Datapoint IDs belonging to the focused incident (for filtering in datapoints view)
   const focusedEventIds = useMemo(() => {
     if (!focusedIncidentId) return null;
     const cluster = clusteredEvents.find((c) => c.id === focusedIncidentId);
@@ -247,6 +248,12 @@ export function MapView({
       ids.add((ev as any).detection_id ?? (ev as any).id);
     }
     return ids;
+  }, [focusedIncidentId, clusteredEvents]);
+
+  // The actual focused cluster object (for the top-left popup)
+  const focusedCluster = useMemo<ClusteredEvent | null>(() => {
+    if (!focusedIncidentId) return null;
+    return clusteredEvents.find((c) => c.id === focusedIncidentId) ?? null;
   }, [focusedIncidentId, clusteredEvents]);
 
   useEffect(() => {
@@ -266,7 +273,7 @@ export function MapView({
   const handleMouseDown = (e: React.MouseEvent) => {
     if (
       (e.target as HTMLElement).closest(
-        ".marker-popup, .zoom-controls, .map-info"
+        ".marker-popup, .zoom-controls, .map-info, .incident-panel"
       )
     ) {
       return;
@@ -308,15 +315,13 @@ export function MapView({
     }
   };
 
-  // IMPORTANT: Do NOT clear focus or selection on background map clicks.
-  // This ensures incident lines/points stay shown until you click the incident again.
+  // Do NOT clear focus on background clicks; dragging/clicking map won't hide focused incident
   const handleMapClick = (e: React.MouseEvent) => {
     if (isDragging) {
       return;
     }
+    // keep selectedEvent and focusedIncidentId intact
 
-    // Keep selectedEvent and focusedIncidentId as-is.
-    // If you still want background clicks to report coordinates, we keep that:
     if (!onMapClick) {
       return;
     }
@@ -482,7 +487,8 @@ export function MapView({
         );
       })}
 
-      <div className="absolute top-4 left-4 z-20 flex flex-col gap-2 zoom-controls">
+      {/* Zoom controls (top-left) */}
+      <div className="absolute top-4 left-4 z-30 flex flex-col gap-2 zoom-controls">
         <Button
           size="icon"
           variant="secondary"
@@ -510,23 +516,105 @@ export function MapView({
         </div>
       </div>
 
+      {/* ALWAYS-SHOWN INCIDENT POPUP (top-left area). Appears when an incident is focused. */}
+      {focusedCluster && (
+        <div
+          className="incident-panel absolute top-4 left-20 z-40 bg-white rounded-lg shadow-2xl  p-4 min-w-[300px] max-w-[360px]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-start justify-between gap-3 mb-2">
+            <h3 className="m-0">
+              Incident #{focusedCluster.id.replace("cluster-", "")}
+            </h3>
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => setFocusedIncidentId(null)}
+              aria-label="Close"
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+
+          <div className="space-y-1 text-foreground">
+            <div>
+              <strong>Events:</strong> {focusedCluster.events.length} signals
+            </div>
+            <div>
+              <strong>Pattern:</strong> {focusedCluster.pattern || "Unknown"}
+            </div>
+            <div>
+              <strong>Risk Level:</strong>{" "}
+              <span
+                style={{ color: getRiskColor(focusedCluster.riskLevel) }}
+                className="uppercase"
+              >
+                {focusedCluster.riskLevel}
+              </span>
+            </div>
+
+            {focusedCluster.projectedHeading !== undefined && (
+              <div className="pt-2 border-t border-gray-200">
+                <strong>Projected Heading:</strong>{" "}
+                {Math.round(focusedCluster.projectedHeading)}°
+              </div>
+            )}
+
+            {focusedCluster.estimatedSpeed !== undefined &&
+              focusedCluster.estimatedSpeed > 0 && (
+                <div>
+                  <strong>Estimated Speed:</strong>{" "}
+                  {Math.round(focusedCluster.estimatedSpeed)} km/h
+                </div>
+              )}
+
+            {focusedCluster.trajectory && (
+              <div>
+                <strong>Trajectory:</strong>{" "}
+                {
+                  focusedCluster.trajectory.filter((p) => !p.isProjected).length
+                }{" "}
+                actual,{" "}
+                {
+                  focusedCluster.trajectory.filter((p) => p.isProjected).length
+                }{" "}
+                projected
+              </div>
+            )}
+
+            <div className="pt-2 border-t border-gray-200 text-muted-foreground">
+              {new Date(focusedCluster.timestamp).toLocaleString()}
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <Button
+                onClick={() =>
+                  issueEvacuation(
+                    focusedCluster.latitude,
+                    focusedCluster.longitude,
+                    5
+                  )
+                }
+              >
+                Issue Evacuation
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {userMode === "civilian" && evacuationOrders.length > 0 && (
         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-30 max-w-md">
           {evacuationOrders.map((order) => {
             const shelter = shelters.find(
               (s) => s.id === order.targetShelterId
             );
-            const incident = clusteredEvents.find(
-              (i) => i.id === order.incidentId
-            );
-
             const priorityColors = {
               low: "bg-blue-600",
               medium: "bg-yellow-600",
               high: "bg-orange-600",
               critical: "bg-red-600",
             };
-
             return (
               <div
                 key={order.id}
@@ -740,20 +828,15 @@ export function MapView({
           });
         })}
 
-      {/* INCIDENT TRAJECTORIES — show lines ONLY when the incident is clicked (focused), and ONLY in incidents view */}
+      {/* INCIDENT TRAJECTORIES — show lines ONLY when the incident is focused AND only in incidents view */}
       {userMode === "military" &&
         militaryViewMode === "incidents" &&
-        (focusedIncidentId
-          ? clusteredEvents.filter((c) => c.id === focusedIncidentId)
-          : clusteredEvents
-        ).map((cluster) => {
-          // Only draw lines for the focused incident
-          if (focusedIncidentId !== cluster.id) return null;
-          if (!cluster.trajectory || cluster.trajectory.length < 2) return null;
+        focusedCluster &&
+        focusedCluster.trajectory &&
+        focusedCluster.trajectory.length >= 2 && (() => {
+          const color = getRiskColor(focusedCluster.riskLevel);
 
-          const color = getRiskColor(cluster.riskLevel);
-
-          const actualLatLngs = (cluster.trajectory || [])
+          const actualLatLngs = (focusedCluster.trajectory || [])
             .filter((p) => !p.isProjected)
             .map((p) => ({ lat: p.lat, lng: p.lng }));
 
@@ -801,11 +884,7 @@ export function MapView({
             .join(" ");
 
           return (
-            <svg
-              key={`trajectory-${cluster.id}`}
-              className="absolute top-0 left-0 w-full h-full pointer-events-none"
-              style={{ zIndex: 5 }}
-            >
+            <svg className="absolute top-0 left-0 w-full h-full pointer-events-none" style={{ zIndex: 5 }}>
               {actualPathD && (
                 <>
                   <path
@@ -933,7 +1012,7 @@ export function MapView({
               ))}
             </svg>
           );
-        })}
+        })()}
 
       {(userMode === "military" ? shelters : safeShelters).map((shelter) => {
         const pos = getMarkerPosition(
@@ -987,7 +1066,7 @@ export function MapView({
 
             {selectedEvent === shelter.id && (
               <div
-                className="absolute top-8 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-xl p-4 min-w={[250]}px border border-gray-200 marker-popup"
+                className="absolute top-8 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-xl p-4 min-w-[250px] border border-gray-200 marker-popup"
                 style={{ zIndex: 10 }}
               >
                 <h3 className="mb-2">{shelter.name}</h3>
@@ -1147,12 +1226,10 @@ export function MapView({
 
                     <div className="pt-1.5 border-t border-gray-200 text-muted-foreground">
                       <div>
-                        Detected:{" "}
-                        {new Date(event.timestamp_utc).toLocaleString()}
+                        Detected: {new Date(event.timestamp_utc).toLocaleString()}
                       </div>
                       <div>
-                        Ingested:{" "}
-                        {new Date(event.ingestion_time).toLocaleString()}
+                        Ingested: {new Date(event.ingestion_time).toLocaleString()}
                       </div>
                     </div>
 
@@ -1166,7 +1243,7 @@ export function MapView({
           );
         })}
 
-      {/* INCIDENT MARKERS & POPUPS */}
+      {/* INCIDENT MARKERS (no per-marker popups; popup is top-left panel). Clicking toggles focus. */}
       {userMode === "military" &&
         militaryViewMode === "incidents" &&
         (focusedIncidentId
@@ -1191,7 +1268,7 @@ export function MapView({
             pos.x <= dimensions.width + 50 &&
             pos.y >= -50 &&
             pos.y <= dimensions.height + 50;
-          const isSelected = selectedEvent === cluster.id;
+          const isFocused = focusedIncidentId === cluster.id;
           const RiskIcon = getRiskIcon(cluster.riskLevel);
 
           if (!isVisible) return null;
@@ -1199,23 +1276,21 @@ export function MapView({
           return (
             <div
               key={cluster.id}
-              className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-transform hover:scale-110"
+              className={`absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-transform hover:scale-110 ${
+                isFocused ? "ring-2 ring-white" : ""
+              }`}
               style={{
                 left: pos.x,
                 top: pos.y,
-                zIndex: isSelected ? 9999 : 10,
+                zIndex: isFocused ? 9999 : 10,
               }}
               onClick={(e) => {
                 e.stopPropagation();
-                // Toggle popup selection
-                const nextSelected =
-                  selectedEvent === cluster.id ? null : cluster.id;
-                setSelectedEvent(nextSelected);
-                // Toggle focus (controls lines & datapoint filtering)
                 setFocusedIncidentId((prev) =>
                   prev === cluster.id ? null : cluster.id
                 );
               }}
+              title={`Incident #${cluster.id.replace("cluster-", "")}`}
             >
               <div
                 className="w-12 h-12 rounded-full border-3 border-white flex items-center justify-center shadow-lg"
@@ -1223,75 +1298,6 @@ export function MapView({
               >
                 <RiskIcon className="w-6 h-6 text-white" strokeWidth={2.5} />
               </div>
-
-              {selectedEvent === cluster.id && (
-                <div
-                  className="absolute top-14 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-xl p-4 min-w-[280px] border border-gray-200 marker-popup"
-                  style={{ zIndex: 10 }}
-                >
-                  <h3 className="mb-2">
-                    Incident #{cluster.id.replace("cluster-", "")}
-                  </h3>
-                  <div className="space-y-1 text-foreground">
-                    <div>
-                      <strong>Events:</strong> {cluster.events.length} signals
-                    </div>
-                    <div>
-                      <strong>Pattern:</strong> {cluster.pattern || "Unknown"}
-                    </div>
-                    <div>
-                      <strong>Risk Level:</strong>{" "}
-                      <span style={{ color }} className="uppercase">
-                        {cluster.riskLevel}
-                      </span>
-                    </div>
-                    {cluster.projectedHeading !== undefined && (
-                      <div className="pt-2 border-t border-gray-200">
-                        <strong>Projected Heading:</strong>{" "}
-                        {Math.round(cluster.projectedHeading)}°
-                      </div>
-                    )}
-                    {cluster.estimatedSpeed !== undefined &&
-                      cluster.estimatedSpeed > 0 && (
-                        <div>
-                          <strong>Estimated Speed:</strong>{" "}
-                          {Math.round(cluster.estimatedSpeed)} km/h
-                        </div>
-                      )}
-                    {cluster.trajectory && (
-                      <div>
-                        <strong>Trajectory:</strong>{" "}
-                        {
-                          cluster.trajectory.filter((p) => !p.isProjected)
-                            .length
-                        }{" "}
-                        actual,{" "}
-                        {cluster.trajectory.filter((p) => p.isProjected).length}{" "}
-                        projected
-                      </div>
-                    )}
-                    <div className="pt-2 border-t border-gray-200 text-muted-foreground">
-                      {new Date(cluster.timestamp).toLocaleString()}
-                    </div>
-                    <div className="flex justify-center pt-2">
-                      <Button
-                        className="cursor-pointer"
-                        onClick={(e) => {
-                          const RANGE = 5;
-                          issueEvacuation(
-                            cluster.latitude,
-                            cluster.longitude,
-                            RANGE
-                          );
-                          e.stopPropagation();
-                        }}
-                      >
-                        Issue Evacuation
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           );
         })}
@@ -1320,16 +1326,14 @@ export function MapView({
             const radiusPx = evacuationZone.range / kmPerPixel;
 
             return (
-              <>
-                <circle
-                  cx={centerPos.x}
-                  cy={centerPos.y}
-                  r={radiusPx}
-                  fill="rgba(220, 38, 38, 0.15)"
-                  stroke="rgba(220, 38, 38, 0.8)"
-                  strokeWidth="3"
-                />
-              </>
+              <circle
+                cx={centerPos.x}
+                cy={centerPos.y}
+                r={radiusPx}
+                fill="rgba(220, 38, 38, 0.15)"
+                stroke="rgba(220, 38, 38, 0.8)"
+                strokeWidth="3"
+              />
             );
           })()}
         </svg>
