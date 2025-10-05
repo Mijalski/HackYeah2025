@@ -1,6 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 
-const LAMBDA_API_URL = 'https://56gjego43e7zbturce52a4i5ni0hpmnb.lambda-url.eu-north-1.on.aws/summary-mock';
+const LAMBDA_API_URL = 'https://56gjego43e7zbturce52a4i5ni0hpmnb.lambda-url.eu-north-1.on.aws/summary';
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -17,7 +17,7 @@ serve(async (req) => {
 
   try {
     console.log('Fetching summaries from Lambda endpoint...');
-    
+
     // Fetch from Lambda
     const response = await fetch(LAMBDA_API_URL, {
       method: 'GET',
@@ -46,7 +46,7 @@ serve(async (req) => {
     });
   } catch (error) {
     console.error('Error fetching summaries:', error);
-    
+
     return new Response(
       JSON.stringify({
         error: true,
