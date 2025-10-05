@@ -45,7 +45,7 @@ interface APISummary {
     latitude: number;
     longitude: number;
   }>;
-  riskLevel: number; // 0-3 maps to low, medium, high, critical
+  riskLevel: string;
 }
 
 // Map API sensorType to our sensor_type format
