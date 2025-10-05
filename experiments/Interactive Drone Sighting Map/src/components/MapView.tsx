@@ -1048,7 +1048,7 @@ export function MapView({
         return (
           <div
             key={shelter.id}
-            className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-transform hover:scale-110"
+            className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-transform"
             style={{ left: pos.x, top: pos.y, zIndex: isSelected ? 9999 : 8 }}
             onClick={(e) => {
               e.stopPropagation();
@@ -1061,9 +1061,7 @@ export function MapView({
               <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white animate-pulse" />
             )}
             <div
-              className={`w-5 h-5 border-2 border-white shadow-lg ${
-                isRecommended ? "ring-2 ring-green-500" : ""
-              }`}
+              className={`w-5 h-5 border-2 border-white shadow-lg hover:scale-110`}
               style={{ backgroundColor: shelterColor }}
             />
 
@@ -1136,7 +1134,7 @@ export function MapView({
           return (
             <div
               key={event.detection_id || event.id}
-              className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-transform hover:scale-110"
+              className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-transform"
               style={{
                 left: pos.x,
                 top: pos.y,
@@ -1149,7 +1147,7 @@ export function MapView({
               }}
             >
               <div
-                className="w-5 h-5 rounded-full border-2 border-white shadow-lg"
+                className="w-5 h-5 rounded-full border-2 border-white shadow-lg hover:scale-110"
                 style={{ backgroundColor: color }}
               />
 
