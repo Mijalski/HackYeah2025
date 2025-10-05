@@ -236,8 +236,9 @@ export function MapView({
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
 
   // Focused incident: controls which incident is "active"
-  const [focusedIncidentId, setFocusedIncidentId] =
-    useState<string | null>(null);
+  const [focusedIncidentId, setFocusedIncidentId] = useState<string | null>(
+    null
+  );
 
   // Datapoint IDs belonging to the focused incident (for filtering in datapoints view)
   const focusedEventIds = useMemo(() => {
@@ -573,13 +574,9 @@ export function MapView({
             {focusedCluster.trajectory && (
               <div>
                 <strong>Trajectory:</strong>{" "}
-                {
-                  focusedCluster.trajectory.filter((p) => !p.isProjected).length
-                }{" "}
+                {focusedCluster.trajectory.filter((p) => !p.isProjected).length}{" "}
                 actual,{" "}
-                {
-                  focusedCluster.trajectory.filter((p) => p.isProjected).length
-                }{" "}
+                {focusedCluster.trajectory.filter((p) => p.isProjected).length}{" "}
                 projected
               </div>
             )}
@@ -835,7 +832,8 @@ export function MapView({
         militaryViewMode === "incidents" &&
         focusedCluster &&
         focusedCluster.trajectory &&
-        focusedCluster.trajectory.length >= 2 && (() => {
+        focusedCluster.trajectory.length >= 2 &&
+        (() => {
           const color = getRiskColor(focusedCluster.riskLevel);
 
           const actualLatLngs = (focusedCluster.trajectory || [])
@@ -886,7 +884,10 @@ export function MapView({
             .join(" ");
 
           return (
-            <svg className="absolute top-0 left-0 w-full h-full pointer-events-none" style={{ zIndex: 5 }}>
+            <svg
+              className="absolute top-0 left-0 w-full h-full pointer-events-none"
+              style={{ zIndex: 5 }}
+            >
               {actualPathD && (
                 <>
                   <path
@@ -1228,10 +1229,12 @@ export function MapView({
 
                     <div className="pt-1.5 border-t border-gray-200 text-muted-foreground">
                       <div>
-                        Detected: {new Date(event.timestamp_utc).toLocaleString()}
+                        Detected:{" "}
+                        {new Date(event.timestamp_utc).toLocaleString()}
                       </div>
                       <div>
-                        Ingested: {new Date(event.ingestion_time).toLocaleString()}
+                        Ingested:{" "}
+                        {new Date(event.ingestion_time).toLocaleString()}
                       </div>
                     </div>
 
@@ -1278,9 +1281,7 @@ export function MapView({
           return (
             <div
               key={cluster.id}
-              className={`absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-transform hover:scale-110 ${
-                isFocused ? "ring-2 ring-white" : ""
-              }`}
+              className={`absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-transform hover:scale-110`}
               style={{
                 left: pos.x,
                 top: pos.y,
