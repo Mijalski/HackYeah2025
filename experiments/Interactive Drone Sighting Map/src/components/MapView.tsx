@@ -232,9 +232,12 @@ export function MapView({
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
+
+  // Focused incident (stays until you click the incident again)
   const [focusedIncidentId, setFocusedIncidentId] =
     useState<string | null>(null);
 
+  // All datapoint IDs that belong to the focused incident
   const focusedEventIds = useMemo(() => {
     if (!focusedIncidentId) return null;
     const cluster = clusteredEvents.find((c) => c.id === focusedIncidentId);
@@ -255,7 +258,6 @@ export function MapView({
         });
       }
     };
-
     updateDimensions();
     window.addEventListener("resize", updateDimensions);
     return () => window.removeEventListener("resize", updateDimensions);
@@ -275,10 +277,8 @@ export function MapView({
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!isDragging) return;
-
     const newOffsetX = -(e.clientX - dragStart.x);
     const newOffsetY = -(e.clientY - dragStart.y);
-
     setOffset({ x: newOffsetX, y: newOffsetY });
   };
 
@@ -286,44 +286,37 @@ export function MapView({
     setIsDragging(false);
   };
 
-  // const issueEvacuation = (latitude: number, longtitude: number, range: number) => {
-
-  // }
-
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault();
-
     const delta = e.deltaY > 0 ? -1 : 1;
     const newZoom = Math.max(3, Math.min(18, zoom + delta));
-
     if (newZoom !== zoom) {
       const zoomFactor = Math.pow(2, newZoom - zoom);
-
       const rect = mapRef.current?.getBoundingClientRect();
       if (rect) {
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
-
         const centerX = dimensions.width / 2;
         const centerY = dimensions.height / 2;
-
         const newOffsetX =
           centerX + (offset.x + mouseX - centerX) * zoomFactor - mouseX;
         const newOffsetY =
           centerY + (offset.y + mouseY - centerY) * zoomFactor - mouseY;
-
         setOffset({ x: newOffsetX, y: newOffsetY });
       }
-
       setZoom(newZoom);
     }
   };
 
+  // IMPORTANT: Do NOT clear focus or selection on background map clicks.
+  // This ensures incident lines/points stay shown until you click the incident again.
   const handleMapClick = (e: React.MouseEvent) => {
     if (isDragging) {
       return;
     }
-    setSelectedEvent(null);
+
+    // Keep selectedEvent and focusedIncidentId as-is.
+    // If you still want background clicks to report coordinates, we keep that:
     if (!onMapClick) {
       return;
     }
@@ -344,7 +337,6 @@ export function MapView({
       offset.x,
       offset.y
     );
-
     onMapClick(latLng.lat, latLng.lng);
   };
 
@@ -394,7 +386,6 @@ export function MapView({
 
   const safeShelters = useMemo(() => {
     if (userMode !== "civilian") return [];
-
     const shelterSafety = shelters.map((shelter) => {
       const distances = clusteredEvents.map((cluster) =>
         calculateDistance(
@@ -408,7 +399,6 @@ export function MapView({
         distances.reduce((a, b) => a + b, 0) / distances.length;
       return { shelter, avgDistance };
     });
-
     return shelterSafety
       .sort((a, b) => b.avgDistance - a.avgDistance)
       .slice(0, 5)
@@ -431,13 +421,10 @@ export function MapView({
     longitude: number,
     range: number
   ) => {
-    console.log("KURWO");
     setEvacuationZone({ lat: latitude, lng: longitude, range });
-
     if (shelters.length > 0) {
       let closest = shelters[0];
       let minDist = Infinity;
-
       for (const s of shelters) {
         const dist = Math.sqrt(
           Math.pow(s.latitude - latitude, 2) +
@@ -448,7 +435,6 @@ export function MapView({
           closest = s;
         }
       }
-
       setEvacuationPath({
         from: { lat: closest.latitude, lng: closest.longitude },
         to: { lat: latitude, lng: longitude },
@@ -754,19 +740,23 @@ export function MapView({
           });
         })}
 
+      {/* INCIDENT TRAJECTORIES — show lines ONLY when the incident is clicked (focused), and ONLY in incidents view */}
       {userMode === "military" &&
         militaryViewMode === "incidents" &&
         (focusedIncidentId
           ? clusteredEvents.filter((c) => c.id === focusedIncidentId)
           : clusteredEvents
         ).map((cluster) => {
-          if (selectedEvent !== cluster.id) return null;
+          // Only draw lines for the focused incident
+          if (focusedIncidentId !== cluster.id) return null;
           if (!cluster.trajectory || cluster.trajectory.length < 2) return null;
 
           const color = getRiskColor(cluster.riskLevel);
+
           const actualLatLngs = (cluster.trajectory || [])
             .filter((p) => !p.isProjected)
             .map((p) => ({ lat: p.lat, lng: p.lng }));
+
           const projectedLatLngs = buildProjectedFromActual(actualLatLngs, 12);
 
           const actualPoints = actualLatLngs.map((p) =>
@@ -997,7 +987,7 @@ export function MapView({
 
             {selectedEvent === shelter.id && (
               <div
-                className="absolute top-8 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-xl p-4 min-w-[250px] border border-gray-200 marker-popup"
+                className="absolute top-8 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-xl p-4 min-w={[250]}px border border-gray-200 marker-popup"
                 style={{ zIndex: 10 }}
               >
                 <h3 className="mb-2">{shelter.name}</h3>
@@ -1019,7 +1009,8 @@ export function MapView({
                     </span>
                   </div>
                   <div className="pt-2 border-t border-gray-200 text-muted-foreground">
-                    {shelter.latitude.toFixed(4)}, {shelter.longitude.toFixed(4)}
+                    {shelter.latitude.toFixed(4)},{" "}
+                    {shelter.longitude.toFixed(4)}
                   </div>
                 </div>
               </div>
@@ -1028,6 +1019,7 @@ export function MapView({
         );
       })}
 
+      {/* DATAPOINTS VIEW — no incident lines here; only markers (filtered by focus if any) */}
       {userMode === "military" &&
         militaryViewMode === "datapoints" &&
         (focusedEventIds
@@ -1131,6 +1123,7 @@ export function MapView({
                         <strong>Course:</strong> {event.course_vector || "N/A"}
                       </div>
                     </div>
+
                     <div className="pt-1.5 border-t border-gray-200 grid grid-cols-2 gap-x-3 gap-y-1">
                       <div>
                         <strong>Confidence:</strong>{" "}
@@ -1138,10 +1131,12 @@ export function MapView({
                       </div>
                       {event.signal_strength_dbm && (
                         <div>
-                          <strong>Signal:</strong> {event.signal_strength_dbm} dBm
+                          <strong>Signal:</strong> {event.signal_strength_dbm}{" "}
+                          dBm
                         </div>
                       )}
                     </div>
+
                     {event.description && (
                       <div className="pt-1.5 border-t border-gray-200">
                         <div className="text-muted-foreground">
@@ -1149,10 +1144,18 @@ export function MapView({
                         </div>
                       </div>
                     )}
+
                     <div className="pt-1.5 border-t border-gray-200 text-muted-foreground">
-                      <div>Detected: {new Date(event.timestamp_utc).toLocaleString()}</div>
-                      <div>Ingested: {new Date(event.ingestion_time).toLocaleString()}</div>
+                      <div>
+                        Detected:{" "}
+                        {new Date(event.timestamp_utc).toLocaleString()}
+                      </div>
+                      <div>
+                        Ingested:{" "}
+                        {new Date(event.ingestion_time).toLocaleString()}
+                      </div>
                     </div>
+
                     <div className="text-muted-foreground">
                       {event.latitude.toFixed(4)}, {event.longitude.toFixed(4)}
                     </div>
@@ -1163,6 +1166,7 @@ export function MapView({
           );
         })}
 
+      {/* INCIDENT MARKERS & POPUPS */}
       {userMode === "military" &&
         militaryViewMode === "incidents" &&
         (focusedIncidentId
@@ -1180,6 +1184,7 @@ export function MapView({
             offset.x,
             offset.y
           );
+
           const color = getRiskColor(cluster.riskLevel);
           const isVisible =
             pos.x >= -50 &&
@@ -1188,7 +1193,9 @@ export function MapView({
             pos.y <= dimensions.height + 50;
           const isSelected = selectedEvent === cluster.id;
           const RiskIcon = getRiskIcon(cluster.riskLevel);
+
           if (!isVisible) return null;
+
           return (
             <div
               key={cluster.id}
@@ -1200,9 +1207,14 @@ export function MapView({
               }}
               onClick={(e) => {
                 e.stopPropagation();
-                const nextSelected = selectedEvent === cluster.id ? null : cluster.id;
+                // Toggle popup selection
+                const nextSelected =
+                  selectedEvent === cluster.id ? null : cluster.id;
                 setSelectedEvent(nextSelected);
-                setFocusedIncidentId((prev) => (prev === cluster.id ? null : cluster.id));
+                // Toggle focus (controls lines & datapoint filtering)
+                setFocusedIncidentId((prev) =>
+                  prev === cluster.id ? null : cluster.id
+                );
               }}
             >
               <div
@@ -1283,6 +1295,7 @@ export function MapView({
             </div>
           );
         })}
+
       {evacuationZone && (
         <svg
           className="absolute top-0 left-0 w-full h-full pointer-events-none"
@@ -1300,6 +1313,7 @@ export function MapView({
               offset.x,
               offset.y
             );
+
             const kmPerPixel =
               (80075 / Math.pow(2, zoom + 8)) *
               Math.cos((center.lat * Math.PI) / 180);
@@ -1349,6 +1363,7 @@ export function MapView({
               offset.x,
               offset.y
             );
+
             return (
               <line
                 x1={fromPos.x}
@@ -1363,6 +1378,7 @@ export function MapView({
           })()}
         </svg>
       )}
+
       <div
         className="absolute bottom-4 right-4 bg-black/70 text-white px-3 py-2 rounded text-sm map-info"
         style={{ zIndex: 999999 }}
