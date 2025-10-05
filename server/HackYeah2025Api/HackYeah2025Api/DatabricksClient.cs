@@ -75,12 +75,12 @@ public sealed class DatabricksClient
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _token);
 
         var where = fromUtc.HasValue
-            ? $" WHERE timestamp_utc >= TIMESTAMP '{fromUtc.Value.UtcDateTime.ToString(TimestampFormat, CultureInfo.InvariantCulture)}'"
+            ? $" WHERE timestamp_start >= TIMESTAMP '{fromUtc.Value.UtcDateTime.ToString(TimestampFormat, CultureInfo.InvariantCulture)}'"
             : string.Empty;
 
         var body = new
         {
-            statement = $"select incident_id,timestamp_utc,data_points,risk_level,summary from de_ml_ws.default.incident_summaries{where}",
+            statement = $"select incident_id,timestamp_start,timestamp_end,data_points,risk_level from de_ml_ws_3660604388778488.default.gold_layer_incidents{where}",
             warehouse_id = _warehouseId,
             wait_timeout = "15s",
             disposition = "INLINE"
@@ -120,12 +120,12 @@ public sealed class DatabricksClient
             }
 
             var id = row[0].GetString() ?? string.Empty;
-            var timestampUtc = ParseTimestampUtc(row[1]);
-            var points = ParsePoints(row[2]);
-            var riskString = row[3].GetString() ?? "0";
-            var description = row[4].GetString() ?? string.Empty;
+            var timestampStartUtc = ParseTimestampUtc(row[1]);
+            var timestampEndUtc = ParseTimestampUtc(row[2]);
+            var points = ParsePoints(row[3]);
+            var riskLevel = row[4].GetString() ?? string.Empty;
 
-            list.Add(new ThreatSummary(id, timestampUtc, points, int.Parse(riskString, CultureInfo.InvariantCulture), description, 1));
+            list.Add(new ThreatSummary(id, timestampStartUtc, timestampEndUtc, points, riskLevel));
         }
 
         return list;
