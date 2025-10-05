@@ -1,6 +1,4 @@
-# HackYeah2025
-
-### Interactive Drone Sighting Map
+# Interactive Drone Sighting Map
 
 ---
 
